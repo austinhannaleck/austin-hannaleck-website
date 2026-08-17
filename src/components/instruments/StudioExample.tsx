@@ -107,9 +107,9 @@ function decodeJam(encoded: string): JamState | null {
  * `key={beatTick}` is what restarts its CSS animation cleanly each beat,
  * without needing a JS-driven reflow hack.
  *
- * Tap tempo: always targets the shared bpm (and auto-engages the lock),
- * since a tap gesture only makes sense against one tempo shared by all
- * three instruments — see handleTapTempo.
+ * Tap tempo: only shown once bpm is locked, since a tap gesture only makes
+ * sense against one tempo shared by all three instruments — see
+ * handleTapTempo.
  *
  * Shareable jam links: see the encodeJam/decodeJam comment above those
  * functions for the full rationale. Short version: "share this jam" reads
@@ -393,25 +393,27 @@ export default function StudioExample() {
           {locked ? "bpm locked" : "lock bpm"}
         </button>
 
-        <button
-          type="button"
-          onClick={handleTapTempo}
-          title="Tap a few times at your tempo — locks the shared bpm to the average"
-          style={{
-            fontFamily: "inherit",
-            fontSize: "11px",
-            fontWeight: 700,
-            padding: "8px 16px",
-            borderRadius: "6px",
-            cursor: "pointer",
-            letterSpacing: "0.05em",
-            background: "#141310",
-            color: "#e8e4dc",
-            border: "1px solid #3a372f",
-          }}
-        >
-          tap tempo
-        </button>
+        {locked && (
+          <button
+            type="button"
+            onClick={handleTapTempo}
+            title="Tap a few times at your tempo — locks the shared bpm to the average"
+            style={{
+              fontFamily: "inherit",
+              fontSize: "11px",
+              fontWeight: 700,
+              padding: "8px 16px",
+              borderRadius: "6px",
+              cursor: "pointer",
+              letterSpacing: "0.05em",
+              background: "#141310",
+              color: "#e8e4dc",
+              border: "1px solid #3a372f",
+            }}
+          >
+            tap tempo
+          </button>
+        )}
 
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <span style={{ fontSize: "10px", color: "#a8a299", letterSpacing: "0.04em" }}>skin</span>

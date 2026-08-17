@@ -1810,6 +1810,7 @@ export default function Synth({
           border-radius: 4px; cursor: pointer; transition: 0.15s; min-width: 34px; }
         .synth-wave-btn.active { color: var(--control-bg); background: var(--accent1); border-color: var(--accent1);
           box-shadow: 0 0 8px var(--accent1-glow); }
+        .synth-wave-row--lfo .synth-wave-btn { min-width: 44px; }
         .synth-scope { width: 100%; height: 90px; border-radius: 8px; display: block;
           box-shadow: inset 0 0 0 1px var(--border), inset 0 0 12px rgba(0,0,0,0.5); margin-bottom: 12px; }
         .synth-seq { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-bottom: 14px; }
@@ -2171,7 +2172,7 @@ export default function Synth({
         <div className="synth-fx-group">
           <div className="synth-fx-header">
             <span className="synth-fx-title">LFO</span>
-            <div className="synth-wave-row">
+            <div className="synth-wave-row synth-wave-row--lfo">
               {(["off", "filter", "pitch", "amp"] as LfoTarget[]).map((t) => (
                 <button key={t} type="button" className={`synth-wave-btn${lfoTarget === t ? " active" : ""}`}
                   onClick={() => setLfoTarget(t)}>{t}</button>
