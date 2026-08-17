@@ -1,0 +1,69 @@
+---
+description: Conventions for the Signal synth/drum-machine components (audio engine architecture, patch system, effect wiring)
+globs: ["**/Synth.tsx", "**/DrumMachine.tsx", "**/StudioExample.tsx"]
+alwaysApply: false
+---
+
+# Signal synth project conventions
+
+This codebase is a Web Audio synthesizer + drum machine built as standalone
+React/TypeScript components (no audio libraries — raw Web Audio API only).
+Follow these established patterns when extending it.
+
+## Ref-mirroring for audio callbacks
+State used inside `useCallback`s that must stay stable (e.g. `triggerVoice`,
+`polyNoteOn`) is NOT read directly from React state — it's mirrored into a
+`useRef` on every render (e.g. `attackRef.current = attack`), and the
+callback reads `.current`. This avoids stale closures without forcing the
+callback to be recreated on every param change (which would restart
+scheduler `useEffect`s that depend on it and glitch playback). When adding
+a new synth parameter used inside a callback, add both the state AND a
+mirrored ref, following the existing examples.
+
+## Permanent audio graph, gain-based bypass
+Effects (Delay, Reverb, Chorus, filter blend) are wired ONCE and left
+connected permanently. Toggling something "off" ramps its wet gain to 0
+and dry gain to 1 — nothing is ever disconnected/reconnected at runtime.
+This avoids audio clicks and graph-rebuild complexity. Follow this pattern
+for any new effect rather than dynamically connecting/disconnecting nodes.
+
+## Mono vs poly voice architecture
+- Mono: a persistent, never-recreated oscillator pool (fixed pool size
+  `MAX_UNISON`), reused across every note. Live-updatable mid-note.
+- Poly: oscillators/filters are created fresh per note-on and torn down
+  (with `onended` cleanup + explicit `AudioParam` disconnects) per note-off.
+  NOT live-updatable mid-hold — new settings only apply to the next note.
+This asymmetry is intentional, not a bug — keep it consistent when adding
+new per-voice features (sub-osc, noise layer, filter blend all follow it).
+
+## The "patch" system
+`SynthPatch` (in Synth.tsx) is the saveable/randomizable unit. It covers
+sound-shaping parameters ONLY — waveform, envelopes, filter, effects. It
+deliberately excludes: play mode (Keys/Arp/Seq), arp settings, sequencer
+pattern, and skin. Loading or randomizing a patch should never change
+those. When adding a new patch field:
+1. Add it to the `SynthPatch` interface.
+2. Add it to `INIT_PATCH` and every factory preset in `FACTORY_PRESETS`.
+3. Wire it in both `applyPatch` and `capturePatch`.
+4. If you're only adding a field (new default applies fine to old saved
+   data), no storage version bump needed — `sanitizePatch` backfills
+   missing fields from `INIT_PATCH` automatically.
+5. If you're changing the *content* of existing factory presets (not just
+   adding a field), bump `PRESET_STORAGE_KEY` (e.g. v5 -> v6) — otherwise
+   users' already-cached localStorage data will shadow your new preset
+   values silently. See the version history in that constant for examples
+   of when this was and wasn't necessary.
+
+## Known follow-ups
+See the "Worthwhile follow-ups" block in Synth.tsx's top comment for the
+running list of intentionally-deferred features (stereo width/panning,
+MIDI input, factory/user preset separation, etc.) before assuming
+something is missing by accident.
+
+## Multi-instrument sync
+Synth and DrumMachine each run independent `setInterval`-based schedulers
+and independent `AudioContext`s. They support an optional controlled `bpm`
+prop + `bpmLocked` (see StudioExample.tsx) for tempo sync, but this is
+NOT sample-accurate lockstep — just periodic realignment on BPM change.
+Don't assume tighter sync than that without deliberately building a shared
+audio clock.
