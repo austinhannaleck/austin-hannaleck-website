@@ -533,9 +533,9 @@ export interface SynthHandle {
   stop: () => void;
   /** Snapshots patch + performance state (mode, arp settings, sequencer pattern, tempo) for a shareable jam link. */
   getState: () => SynthState;
-  /** Restores a snapshot from getState(). Doesn't itself resume audio (see `play`) — loading state on page mount happens before any user gesture. */
+  /** Restores a snapshot from getState(). Always lands in silent Keys mode regardless of the saved mode — even Arp/Seq mode itself is "playing" for this instrument, so applying it here (during page mount, before any user gesture) would start audio automatically. The real mode is deferred until `play()`. */
   loadState: (state: SynthState) => void;
-  /** Ensures the audio graph exists and resumes it if suspended — called from a real click so a loaded jam link can actually make sound. */
+  /** Resumes the audio graph and applies the mode from the last loadState() call (if it was Arp/Seq) — called from a real click so a loaded jam link can actually make sound. */
   play: () => void;
 }
 
@@ -670,6 +670,13 @@ export default function Synth({
   const chorusDelaysRef = useRef<DelayNode[]>([]);
   const chorusLfosRef = useRef<OscillatorNode[]>([]);
   const chorusLfoDepthGainsRef = useRef<GainNode[]>([]);
+  // A shared jam link's saved mode (see SynthHandle.loadState) — deferred
+  // here rather than applied immediately, since mode !== "keys" is what
+  // makes the Arp/Seq scheduler effect below actually start making sound.
+  // Applying it straight from loadState (called on page mount, no user
+  // gesture) started audio playing before a visitor had clicked anything.
+  // `play()` is what applies it, from a real click.
+  const pendingPlayModeRef = useRef<PlayMode | null>(null);
 
   const waveformRef = useRef(waveform);
   const attackRef = useRef(attack);
@@ -1138,7 +1145,11 @@ export default function Synth({
       }),
       loadState: (state) => {
         applyPatch(state.patch);
-        setMode(PLAY_MODES.includes(state.mode) ? state.mode : "keys");
+        // Land silently in Keys mode no matter what was saved — see
+        // pendingPlayModeRef above for why. `play()` applies the real mode.
+        const targetMode = PLAY_MODES.includes(state.mode) ? state.mode : "keys";
+        setMode("keys");
+        pendingPlayModeRef.current = targetMode === "keys" ? null : targetMode;
         setArpPattern(ARP_PATTERNS.includes(state.arpPattern) ? state.arpPattern : "up");
         setArpOctaves(Math.round(clampNum(state.arpOctaves, 1, 3, 1)));
         setRate(RATES.includes(state.rate) ? state.rate : "1/16");
@@ -1153,6 +1164,10 @@ export default function Synth({
       play: () => {
         const ctx = ensureAudioGraph();
         if (ctx.state === "suspended") ctx.resume();
+        if (pendingPlayModeRef.current) {
+          setMode(pendingPlayModeRef.current);
+          pendingPlayModeRef.current = null;
+        }
       },
     }),
     [ensureAudioGraph, applyPatch, capturePatch, mode, arpPattern, arpOctaves, rate, gate, seqSteps, bpm, externalBpm],

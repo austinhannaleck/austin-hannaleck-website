@@ -116,7 +116,9 @@ function decodeJam(encoded: string): JamState | null {
  * every instrument's current pattern/knobs via getState(), packs it with
  * skin+bpm into a `?jam=` URL, and copies it to the clipboard; opening
  * that URL calls loadState() on each instrument during this component's
- * mount effect and shows a "play it" banner rather than autoplaying.
+ * mount effect and shows a banner rather than autoplaying — `isJamPlaying`
+ * makes that banner's button a real play/stop toggle (mirroring the demo
+ * button above), rather than a one-shot "play it" with no way back.
  */
 export default function StudioExample() {
   const [bpm, setBpm] = useState(120);
@@ -129,6 +131,7 @@ export default function StudioExample() {
 
   // Shareable jam links — see the file-header comment above encodeJam/decodeJam.
   const [loadedJam, setLoadedJam] = useState(false);
+  const [isJamPlaying, setIsJamPlaying] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
 
@@ -146,11 +149,18 @@ export default function StudioExample() {
     setLoadedJam(true);
   }, []);
 
-  const playLoadedJam = () => {
+  const toggleJamPlayback = () => {
+    if (isJamPlaying) {
+      synthRef.current?.stop();
+      drumRef.current?.stop();
+      basslineRef.current?.stop();
+      setIsJamPlaying(false);
+      return;
+    }
     synthRef.current?.play();
     drumRef.current?.play();
     basslineRef.current?.play();
-    setLoadedJam(false);
+    setIsJamPlaying(true);
   };
 
   const shareJam = async () => {
@@ -555,7 +565,7 @@ export default function StudioExample() {
           </span>
           <button
             type="button"
-            onClick={playLoadedJam}
+            onClick={toggleJamPlayback}
             style={{
               fontFamily: "inherit",
               fontSize: "11px",
@@ -569,7 +579,7 @@ export default function StudioExample() {
               border: "1px solid #3ed6c4",
             }}
           >
-            ▶ play it
+            {isJamPlaying ? "■ stop jam" : "▶ play it"}
           </button>
           <button
             type="button"
