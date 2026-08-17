@@ -2,10 +2,11 @@ import { useState } from "react";
 import Sidebar from "./components/Sidebar";
 import StudioExample from "./components/instruments/StudioExample";
 
-type Tab = "home" | "instruments";
+type Tab = "home" | "instruments" | "resume";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "home", label: "Home" },
+  { id: "resume", label: "Resume" },
   { id: "instruments", label: "Instruments" },
 ];
 
@@ -37,7 +38,16 @@ function App() {
           </main>
         )}
 
+        {tab === "resume" && (
+          <main className="flex flex-col items-center justify-center py-24">
+            <h1 className="text-4xl font-semibold">Resume</h1>
+            <p className="mt-2 text-neutral-500 dark:text-neutral-400">Coming soon</p>
+          </main>
+        )}
+
         {tab === "instruments" && <StudioExample />}
+
+        
       </div>
     </div>
   );
