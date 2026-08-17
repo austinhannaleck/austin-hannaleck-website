@@ -1,13 +1,15 @@
 import {
   useCallback,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
-  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
+  type Ref,
   type WheelEvent as ReactWheelEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { SKIN_PALETTES, skinToCssVars, type SkinName, type SkinPalette } from "./skins";
 
 /**
  * Synth — a small hardware-styled synthesizer with a mono/poly switch,
@@ -17,12 +19,17 @@ import {
  * No external audio or styling library required — built entirely on
  * the native Web Audio API, with scoped CSS injected via a <style> tag.
  *
- * Skins:
+ * Skins (palettes defined in ./skins.ts, shared with DrumMachine.tsx and
+ * Bassline.tsx so all three can be palette-synced — see StudioExample.tsx):
  *  - basic     — the original dark hardware panel.
  *  - synthwave — purple-to-sunset gradient panel, magenta/cyan accents.
  *  - vintage   — cream/walnut Moog Grandmother-inspired panel.
  * Every color in the stylesheet is a CSS custom property, so a skin is
- * just a palette object swapped onto the root element's inline style.
+ * just a palette object swapped onto the root element's inline style. This
+ * component takes `skin` as a plain prop only — it has no selector of its
+ * own; StudioExample.tsx's top bar is the one place skin is chosen when
+ * composed with the other instruments. A standalone consumer just passes
+ * whichever skin it wants (or omits it for "basic").
  *
  * Play modes:
  *  - Keys: manual play, in either voice mode:
@@ -59,7 +66,6 @@ type PlayMode = "keys" | "arp" | "seq";
 type VoiceMode = "mono" | "poly";
 type ArpPattern = "up" | "down" | "updown" | "random";
 type Rate = "1/4" | "1/8" | "1/16";
-type SkinName = "basic" | "synthwave" | "vintage";
 type LfoTarget = "off" | "filter" | "pitch" | "amp";
 type FilterType = "lowpass" | "highpass" | "bandpass";
 
@@ -86,101 +92,6 @@ interface PolyVoice {
   noiseSource: AudioBufferSourceNode;
   noiseGain: GainNode;
 }
-
-interface SkinPalette {
-  panel: string;
-  panel2: string;
-  text: string;
-  label: string;
-  accent1: string;
-  accent1Glow: string;
-  accent2: string;
-  accent2Glow: string;
-  border: string;
-  controlBg: string;
-  keyWhite: string;
-  keyBlack: string;
-  keyWhiteLabel: string;
-  keyBlackLabel: string;
-  scopeBg: string;
-}
-
-const SKIN_PALETTES: Record<SkinName, SkinPalette> = {
-  basic: {
-    panel: "#1c1b19",
-    panel2: "#26241f",
-    text: "#e8e4dc",
-    label: "#a8a299",
-    accent1: "#ff7a1a",
-    accent1Glow: "rgba(255,122,26,0.6)",
-    accent2: "#3ed6c4",
-    accent2Glow: "rgba(62,214,196,0.7)",
-    border: "#3a372f",
-    controlBg: "#141310",
-    keyWhite: "#efece4",
-    keyBlack: "#141310",
-    keyWhiteLabel: "#66625a",
-    keyBlackLabel: "#a8a299",
-    scopeBg: "#141310",
-  },
-  synthwave: {
-    panel:
-      "repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 7px), " +
-      "linear-gradient(180deg, #2a1b40 0%, #4a2361 45%, #a52d6e 72%, #ff7a3d 100%)",
-    panel2: "#2a1b40",
-    text: "#f3e6ff",
-    label: "#a68fc9",
-    accent1: "#ff3aa0",
-    accent1Glow: "rgba(255,58,160,0.65)",
-    accent2: "#20f0ff",
-    accent2Glow: "rgba(32,240,255,0.7)",
-    border: "#5a3d7a",
-    controlBg: "#1a1226",
-    keyWhite: "#e7d9ff",
-    keyBlack: "#1a1226",
-    keyWhiteLabel: "#5b4a7a",
-    keyBlackLabel: "#c9b8ff",
-    scopeBg: "#180f26",
-  },
-  vintage: {
-    panel: "radial-gradient(ellipse at 50% -20%, #f2e9d3 0%, #e7d9b8 60%, #ddcda0 100%)",
-    panel2: "#ddcda0",
-    text: "#2b2013",
-    label: "#7a6a4a",
-    accent1: "#e0632a",
-    accent1Glow: "rgba(224,98,42,0.55)",
-    accent2: "#5c6b3f",
-    accent2Glow: "rgba(92,107,63,0.55)",
-    border: "#b8a37a",
-    controlBg: "#3a2f20",
-    keyWhite: "#f2e9d3",
-    keyBlack: "#3a2f20",
-    keyWhiteLabel: "#8a7350",
-    keyBlackLabel: "#d9c9a3",
-    scopeBg: "#2b2013",
-  },
-};
-
-const skinToCssVars = (p: SkinPalette): CSSProperties => {
-  const vars: Record<string, string> = {
-    "--panel": p.panel,
-    "--panel-2": p.panel2,
-    "--text": p.text,
-    "--label": p.label,
-    "--accent1": p.accent1,
-    "--accent1-glow": p.accent1Glow,
-    "--accent2": p.accent2,
-    "--accent2-glow": p.accent2Glow,
-    "--border": p.border,
-    "--control-bg": p.controlBg,
-    "--key-white": p.keyWhite,
-    "--key-black": p.keyBlack,
-    "--key-white-label": p.keyWhiteLabel,
-    "--key-black-label": p.keyBlackLabel,
-    "--scope-bg": p.scopeBg,
-  };
-  return vars as CSSProperties;
-};
 
 const SEMITONES_FROM_A4: Record<string, number> = {
   C4: -9, "C#4": -8, D4: -7, "D#4": -6, E4: -5, F4: -4, "F#4": -3,
@@ -215,6 +126,14 @@ const WAVES: { type: WaveType; label: string }[] = [
 ];
 
 const RATE_MULTIPLIER: Record<Rate, number> = { "1/4": 1, "1/8": 0.5, "1/16": 0.25 };
+
+// Valid values for performance-state fields restored from a shared jam link
+// (see StudioExample.tsx's "share this jam" feature) — the link's payload
+// is just base64 JSON a visitor could hand-edit, so loadState() checks
+// against these rather than trusting it outright.
+const PLAY_MODES: PlayMode[] = ["keys", "arp", "seq"];
+const ARP_PATTERNS: ArpPattern[] = ["up", "down", "updown", "random"];
+const RATES: Rate[] = ["1/4", "1/8", "1/16"];
 
 const MAX_UNISON = 7;
 const FILTER_LFO_MAX_HZ = 4000;
@@ -589,6 +508,37 @@ function Knob({ value, min, max, step = 0, onChange, bipolarZero, size = 46, ari
 }
 // -----------------------------------------------------------------------
 
+const clampNum = (v: unknown, min: number, max: number, fallback: number) =>
+  typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
+
+/** Full state snapshot — SynthPatch plus the performance state a patch deliberately excludes (play mode, arp settings, sequencer pattern, tempo). Used only for the "share this jam" link (see StudioExample.tsx), not for patch save/load. */
+export interface SynthState {
+  patch: SynthPatch;
+  mode: PlayMode;
+  arpPattern: ArpPattern;
+  arpOctaves: number;
+  rate: Rate;
+  gate: number;
+  seqSteps: SeqStep[];
+  bpm: number;
+}
+
+/** Imperative handle exposed via `ref` — lets a parent (StudioExample.tsx) pull this instrument's live output into its own combined recording, or trigger a hands-free demo. */
+export interface SynthHandle {
+  /** Returns the synth's permanently-tapped post-effects output stream, creating its AudioContext first if needed. */
+  getOutputStream: () => MediaStream;
+  /** Loads a melodic factory patch and switches to Seq mode, which plays itself on its own clock — no keys held, no interaction required beyond the click that called this. */
+  playDemo: () => void;
+  /** Returns to Keys mode, which stops Seq/Arp's self-playing clock (used to stop the demo). */
+  stop: () => void;
+  /** Snapshots patch + performance state (mode, arp settings, sequencer pattern, tempo) for a shareable jam link. */
+  getState: () => SynthState;
+  /** Restores a snapshot from getState(). Doesn't itself resume audio (see `play`) — loading state on page mount happens before any user gesture. */
+  loadState: (state: SynthState) => void;
+  /** Ensures the audio graph exists and resumes it if suspended — called from a real click so a loaded jam link can actually make sound. */
+  play: () => void;
+}
+
 interface SynthProps {
   /** If provided, the synth's tempo tracks this value instead of managing its own — for syncing with another instrument (see StudioExample.tsx). */
   bpm?: number;
@@ -596,9 +546,18 @@ interface SynthProps {
   onBpmChange?: (bpm: number) => void;
   /** When true, disables the local Tempo knob (it's being driven externally, so local editing would just fight the shared value). */
   bpmLocked?: boolean;
+  /** Which shared skin palette (see ./skins.ts) to render with. Defaults to "basic" when omitted, so the synth still looks right standalone. There's no selector in this panel — see StudioExample.tsx's top bar, the single place skin is chosen. */
+  skin?: SkinName;
+  ref?: Ref<SynthHandle>;
 }
 
-export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false }: SynthProps = {}) {
+export default function Synth({
+  bpm: externalBpm,
+  onBpmChange,
+  bpmLocked = false,
+  skin = "basic",
+  ref,
+}: SynthProps = {}) {
   const [waveform, setWaveform] = useState<WaveType>("sawtooth");
   const [filterType, setFilterType] = useState<FilterType>("lowpass");
   const [filterBlend, setFilterBlend] = useState(0.5);
@@ -633,7 +592,6 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
   const [arpOctaves, setArpOctaves] = useState(1);
   const [seqSteps, setSeqSteps] = useState<SeqStep[]>(DEFAULT_SEQ);
   const [currentStep, setCurrentStep] = useState(-1);
-  const [skin, setSkin] = useState<SkinName>("basic");
 
   const [delayOn, setDelayOn] = useState(false);
   const [delayTime, setDelayTime] = useState(0.32);
@@ -682,6 +640,7 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
   const filterAltGainRef = useRef<GainNode | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const recordStreamDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const monoOscsRef = useRef<OscillatorNode[]>([]);
   const monoOscGainsRef = useRef<GainNode[]>([]);
   const monoBaseFreqRef = useRef(440);
@@ -738,6 +697,27 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
   const gateRef = useRef(gate);
   const seqStepsRef = useRef(seqSteps);
   const skinRef = useRef<SkinPalette>(SKIN_PALETTES[skin]);
+  // Only needed at audio-graph creation time (see ensureAudioGraph) — kept
+  // as refs, like everything else above, so turning these knobs doesn't
+  // change ensureAudioGraph's identity and cascade into restarting the
+  // Arp/Seq scheduler (which depends on triggerVoice, which depends on
+  // ensureAudioGraph). Live updates after creation still go through their
+  // own small effects further down, unaffected by this.
+  const volumeRef = useRef(volume);
+  const delayTimeRef = useRef(delayTime);
+  const delayFeedbackRef = useRef(delayFeedback);
+  const delayMixRef = useRef(delayMix);
+  const delayOnRef = useRef(delayOn);
+  const reverbSizeRef = useRef(reverbSize);
+  const reverbMixRef = useRef(reverbMix);
+  const reverbOnRef = useRef(reverbOn);
+  const lfoRateRef = useRef(lfoRate);
+  const lfoTargetRef = useRef(lfoTarget);
+  const lfoDepthRef = useRef(lfoDepth);
+  const chorusOnRef = useRef(chorusOn);
+  const chorusRateRef = useRef(chorusRate);
+  const chorusDepthRef = useRef(chorusDepth);
+  const chorusMixRef = useRef(chorusMix);
 
   waveformRef.current = waveform;
   attackRef.current = attack;
@@ -765,6 +745,21 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
   gateRef.current = gate;
   seqStepsRef.current = seqSteps;
   skinRef.current = SKIN_PALETTES[skin];
+  volumeRef.current = volume;
+  delayTimeRef.current = delayTime;
+  delayFeedbackRef.current = delayFeedback;
+  delayMixRef.current = delayMix;
+  delayOnRef.current = delayOn;
+  reverbSizeRef.current = reverbSize;
+  reverbMixRef.current = reverbMix;
+  reverbOnRef.current = reverbOn;
+  lfoRateRef.current = lfoRate;
+  lfoTargetRef.current = lfoTarget;
+  lfoDepthRef.current = lfoDepth;
+  chorusOnRef.current = chorusOn;
+  chorusRateRef.current = chorusRate;
+  chorusDepthRef.current = chorusDepth;
+  chorusMixRef.current = chorusMix;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -775,7 +770,7 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
     }
   }, [presets]);
 
-  const applyPatch = (rawPatch: SynthPatch) => {
+  const applyPatch = useCallback((rawPatch: SynthPatch) => {
     const patch = sanitizePatch(rawPatch);
     setWaveform(patch.waveform);
     setVoiceMode(patch.voiceMode);
@@ -811,15 +806,24 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
     setLfoTarget(patch.lfoTarget);
     setLfoRate(patch.lfoRate);
     setLfoDepth(patch.lfoDepth);
-  };
+  }, []);
 
-  const capturePatch = (): SynthPatch => ({
-    waveform, voiceMode, octaveShift, unisonCount, detuneAmount, subLevel, noiseLevel, filterType, filterBlend, cutoff, resonance,
-    filterEnvAmount, filterEnvDecay, attack, decay, sustain, release, glide, legato, volume,
-    delayOn, delayTime, delayFeedback, delayMix, reverbOn, reverbSize, reverbMix,
-    chorusOn, chorusRate, chorusDepth, chorusMix,
-    lfoTarget, lfoRate, lfoDepth,
-  });
+  const capturePatch = useCallback(
+    (): SynthPatch => ({
+      waveform, voiceMode, octaveShift, unisonCount, detuneAmount, subLevel, noiseLevel, filterType, filterBlend, cutoff, resonance,
+      filterEnvAmount, filterEnvDecay, attack, decay, sustain, release, glide, legato, volume,
+      delayOn, delayTime, delayFeedback, delayMix, reverbOn, reverbSize, reverbMix,
+      chorusOn, chorusRate, chorusDepth, chorusMix,
+      lfoTarget, lfoRate, lfoDepth,
+    }),
+    [
+      waveform, voiceMode, octaveShift, unisonCount, detuneAmount, subLevel, noiseLevel, filterType, filterBlend, cutoff, resonance,
+      filterEnvAmount, filterEnvDecay, attack, decay, sustain, release, glide, legato, volume,
+      delayOn, delayTime, delayFeedback, delayMix, reverbOn, reverbSize, reverbMix,
+      chorusOn, chorusRate, chorusDepth, chorusMix,
+      lfoTarget, lfoRate, lfoDepth,
+    ],
+  );
 
   useEffect(() => {
     if (savingSlotIndex !== null) {
@@ -874,7 +878,7 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
     const ctx = new AudioContextCtor();
 
     const masterGain = ctx.createGain();
-    masterGain.gain.value = volume;
+    masterGain.gain.value = volumeRef.current;
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 1024;
 
@@ -885,13 +889,13 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
     // target changes, and lets poly voices connect unconditionally too.
     const lfoOsc = ctx.createOscillator();
     lfoOsc.type = "sine";
-    lfoOsc.frequency.value = lfoRate;
+    lfoOsc.frequency.value = lfoRateRef.current;
     const lfoFilterDepthGain = ctx.createGain();
-    lfoFilterDepthGain.gain.value = lfoTarget === "filter" ? lfoDepth * FILTER_LFO_MAX_HZ : 0;
+    lfoFilterDepthGain.gain.value = lfoTargetRef.current === "filter" ? lfoDepthRef.current * FILTER_LFO_MAX_HZ : 0;
     const lfoPitchDepthGain = ctx.createGain();
-    lfoPitchDepthGain.gain.value = lfoTarget === "pitch" ? lfoDepth * PITCH_LFO_MAX_CENTS : 0;
+    lfoPitchDepthGain.gain.value = lfoTargetRef.current === "pitch" ? lfoDepthRef.current * PITCH_LFO_MAX_CENTS : 0;
     const lfoAmpDepthGain = ctx.createGain();
-    lfoAmpDepthGain.gain.value = lfoTarget === "amp" ? lfoDepth : 0;
+    lfoAmpDepthGain.gain.value = lfoTargetRef.current === "amp" ? lfoDepthRef.current : 0;
     lfoOsc.connect(lfoFilterDepthGain);
     lfoOsc.connect(lfoPitchDepthGain);
     lfoOsc.connect(lfoAmpDepthGain);
@@ -900,7 +904,7 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
     // Tremolo stage: sits between masterGain and the effects chain so it
     // affects both mono and poly voices uniformly without per-voice wiring.
     const tremoloGain = ctx.createGain();
-    tremoloGain.gain.value = lfoTarget === "amp" ? 1 - lfoDepth / 2 : 1;
+    tremoloGain.gain.value = lfoTargetRef.current === "amp" ? 1 - lfoDepthRef.current / 2 : 1;
     lfoAmpDepthGain.connect(tremoloGain.gain);
     masterGain.connect(tremoloGain);
 
@@ -910,9 +914,9 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
     // than staying locked together — cheap way to get ensemble-like
     // movement without needing true phase control on OscillatorNode.
     const chorusDryGain = ctx.createGain();
-    chorusDryGain.gain.value = chorusOn ? 1 - chorusMix : 1;
+    chorusDryGain.gain.value = chorusOnRef.current ? 1 - chorusMixRef.current : 1;
     const chorusWetGain = ctx.createGain();
-    chorusWetGain.gain.value = chorusOn ? chorusMix : 0;
+    chorusWetGain.gain.value = chorusOnRef.current ? chorusMixRef.current : 0;
     const chorusStageOut = ctx.createGain();
     tremoloGain.connect(chorusDryGain);
     chorusDryGain.connect(chorusStageOut);
@@ -925,9 +929,9 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
       delay.delayTime.value = CHORUS_BASE_DELAY_SEC;
       const lfo = ctx.createOscillator();
       lfo.type = "sine";
-      lfo.frequency.value = chorusRate * (i === 0 ? 1 : CHORUS_VOICE_RATE_SPREAD);
+      lfo.frequency.value = chorusRateRef.current * (i === 0 ? 1 : CHORUS_VOICE_RATE_SPREAD);
       const depthGain = ctx.createGain();
-      depthGain.gain.value = chorusDepth * CHORUS_MAX_DEPTH_SEC;
+      depthGain.gain.value = chorusDepthRef.current * CHORUS_MAX_DEPTH_SEC;
       lfo.connect(depthGain);
       depthGain.connect(delay.delayTime);
       tremoloGain.connect(delay);
@@ -944,13 +948,13 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
     // ramps its wet gain to 0 and dry gain to 1 rather than disconnecting
     // anything, which avoids clicks and graph-rebuild complexity.
     const delayNode = ctx.createDelay(2.0);
-    delayNode.delayTime.value = delayTime;
+    delayNode.delayTime.value = delayTimeRef.current;
     const delayFeedbackGain = ctx.createGain();
-    delayFeedbackGain.gain.value = delayFeedback;
+    delayFeedbackGain.gain.value = delayFeedbackRef.current;
     const delayWetGain = ctx.createGain();
-    delayWetGain.gain.value = delayOn ? delayMix : 0;
+    delayWetGain.gain.value = delayOnRef.current ? delayMixRef.current : 0;
     const delayDryGain = ctx.createGain();
-    delayDryGain.gain.value = delayOn ? 1 - delayMix : 1;
+    delayDryGain.gain.value = delayOnRef.current ? 1 - delayMixRef.current : 1;
     const delayStageOut = ctx.createGain();
 
     chorusStageOut.connect(delayDryGain);
@@ -962,11 +966,11 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
     delayWetGain.connect(delayStageOut);
 
     const convolver = ctx.createConvolver();
-    convolver.buffer = makeImpulseResponse(ctx, reverbSize);
+    convolver.buffer = makeImpulseResponse(ctx, reverbSizeRef.current);
     const reverbWetGain = ctx.createGain();
-    reverbWetGain.gain.value = reverbOn ? reverbMix : 0;
+    reverbWetGain.gain.value = reverbOnRef.current ? reverbMixRef.current : 0;
     const reverbDryGain = ctx.createGain();
-    reverbDryGain.gain.value = reverbOn ? 1 - reverbMix : 1;
+    reverbDryGain.gain.value = reverbOnRef.current ? 1 - reverbMixRef.current : 1;
     const reverbStageOut = ctx.createGain();
 
     delayStageOut.connect(reverbDryGain);
@@ -977,6 +981,12 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
 
     reverbStageOut.connect(analyser);
     analyser.connect(ctx.destination);
+    // Permanent recording tap, post-effects — connected once and never torn
+    // down (same pattern as the DrumMachine tap), so a parent's
+    // getOutputStream() call always returns the fully-processed signal.
+    const recordDest = ctx.createMediaStreamDestination();
+    analyser.connect(recordDest);
+    recordStreamDestRef.current = recordDest;
 
     // Two filters in parallel, crossfaded by filterBlend, so switching or
     // dialing in a filter "type" morphs smoothly instead of hard-cutting —
@@ -985,17 +995,17 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
     // lowpass and the selected alt-type side by side and mixing outputs.
     const filter = ctx.createBiquadFilter();
     filter.type = "lowpass";
-    filter.frequency.value = cutoff;
-    filter.Q.value = resonance;
+    filter.frequency.value = cutoffRef.current;
+    filter.Q.value = resonanceRef.current;
 
     const filterAlt = ctx.createBiquadFilter();
-    filterAlt.type = filterType === "lowpass" ? "highpass" : filterType;
-    filterAlt.frequency.value = cutoff;
-    filterAlt.Q.value = resonance;
+    filterAlt.type = filterTypeRef.current === "lowpass" ? "highpass" : filterTypeRef.current;
+    filterAlt.frequency.value = cutoffRef.current;
+    filterAlt.Q.value = resonanceRef.current;
 
     const filterLPGain = ctx.createGain();
     const filterAltGain = ctx.createGain();
-    const initialBlend = filterType === "lowpass" ? 0 : filterBlend;
+    const initialBlend = filterTypeRef.current === "lowpass" ? 0 : filterBlendRef.current;
     filterLPGain.gain.value = 1 - initialBlend;
     filterAltGain.gain.value = initialBlend;
 
@@ -1040,7 +1050,7 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
     subOsc.type = "sine";
     subOsc.frequency.value = 220;
     const subGain = ctx.createGain();
-    subGain.gain.value = subLevel;
+    subGain.gain.value = subLevelRef.current;
     subOsc.connect(subGain);
     subGain.connect(ampGain);
     subOsc.start();
@@ -1053,7 +1063,7 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
     noiseSource.buffer = noiseBuffer;
     noiseSource.loop = true;
     const noiseGain = ctx.createGain();
-    noiseGain.gain.value = noiseLevel;
+    noiseGain.gain.value = noiseLevelRef.current;
     noiseSource.connect(noiseGain);
     noiseGain.connect(ampGain);
     noiseSource.start();
@@ -1091,11 +1101,62 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
     chorusLfosRef.current = chorusLfos;
     chorusLfoDepthGainsRef.current = chorusLfoDepthGains;
     return ctx;
-  }, [
-    filterType, filterBlend, cutoff, resonance, volume, delayTime, delayFeedback, delayMix, delayOn,
-    reverbSize, reverbMix, reverbOn, lfoRate, lfoTarget, lfoDepth,
-    subLevel, noiseLevel, chorusOn, chorusRate, chorusDepth, chorusMix,
-  ]);
+    // Every knob this reads comes from a ref (see above), so this callback's
+    // identity never changes after mount — which matters, because it flows
+    // into triggerVoice -> the Arp/Seq scheduler effect. Depending on the
+    // knob state directly here used to mean turning almost any sound-shaping
+    // knob while a sequence played would tear down and restart the
+    // scheduler, snapping the pattern back to step 0 mid-playback.
+  }, []);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getOutputStream: () => {
+        ensureAudioGraph();
+        return recordStreamDestRef.current!.stream;
+      },
+      playDemo: () => {
+        const ctx = ensureAudioGraph();
+        if (ctx.state === "suspended") ctx.resume();
+        const demoPatch = FACTORY_PRESETS.find((p) => p?.name === "Pluck Arp")?.patch ?? INIT_PATCH;
+        applyPatch(demoPatch);
+        setMode("seq");
+      },
+      stop: () => {
+        setMode("keys");
+      },
+      getState: () => ({
+        patch: capturePatch(),
+        mode,
+        arpPattern,
+        arpOctaves,
+        rate,
+        gate,
+        seqSteps,
+        bpm,
+      }),
+      loadState: (state) => {
+        applyPatch(state.patch);
+        setMode(PLAY_MODES.includes(state.mode) ? state.mode : "keys");
+        setArpPattern(ARP_PATTERNS.includes(state.arpPattern) ? state.arpPattern : "up");
+        setArpOctaves(Math.round(clampNum(state.arpOctaves, 1, 3, 1)));
+        setRate(RATES.includes(state.rate) ? state.rate : "1/16");
+        setGate(clampNum(state.gate, 0.05, 1, 0.6));
+        const steps =
+          Array.isArray(state.seqSteps) && state.seqSteps.length === 8
+            ? state.seqSteps.map((s) => ({ note: typeof s?.note === "string" ? s.note : null }))
+            : DEFAULT_SEQ;
+        setSeqSteps(steps);
+        if (externalBpm === undefined) setInternalBpm(Math.round(clampNum(state.bpm, 40, 200, 120)));
+      },
+      play: () => {
+        const ctx = ensureAudioGraph();
+        if (ctx.state === "suspended") ctx.resume();
+      },
+    }),
+    [ensureAudioGraph, applyPatch, capturePatch, mode, arpPattern, arpOctaves, rate, gate, seqSteps, bpm, externalBpm],
+  );
 
   useEffect(() => {
     if (filterAltRef.current) filterAltRef.current.type = filterType === "lowpass" ? "highpass" : filterType;
@@ -1718,7 +1779,7 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
           to { opacity: 1; transform: translateY(0); }
         }
         .synth-field { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-        .synth-field:has(.synth-wave-row), .synth-field:has(.synth-select) { align-items: stretch; }
+        .synth-field:has(.synth-wave-row) { align-items: stretch; }
         .synth-knob-svg { cursor: ns-resize; touch-action: none; outline: none; }
         .synth-knob-svg.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
         .synth-knob-svg:focus-visible { filter: drop-shadow(0 0 3px var(--accent2-glow)); }
@@ -1730,13 +1791,10 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
         .synth-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--label); }
         .synth-wave-row { display: flex; gap: 4px; flex-wrap: wrap; }
         .synth-wave-btn { flex: 1; font-family: inherit; font-size: 9px; padding: 6px 4px;
-          background: var(--control-bg); color: var(--label); border: 1px solid var(--border);
+          background: var(--control-bg); color: var(--control-text); border: 1px solid var(--border);
           border-radius: 4px; cursor: pointer; transition: 0.15s; min-width: 34px; }
         .synth-wave-btn.active { color: var(--control-bg); background: var(--accent1); border-color: var(--accent1);
           box-shadow: 0 0 8px var(--accent1-glow); }
-        .synth-select { width: 100%; font-family: inherit; font-size: 9px; padding: 6px 4px;
-          background: var(--control-bg); color: var(--text); border: 1px solid var(--border);
-          border-radius: 4px; cursor: pointer; }
         .synth-scope { width: 100%; height: 90px; border-radius: 8px; display: block;
           box-shadow: inset 0 0 0 1px var(--border), inset 0 0 12px rgba(0,0,0,0.5); margin-bottom: 12px; }
         .synth-seq { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-bottom: 14px; }
@@ -1744,7 +1802,7 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
           border-radius: 6px; padding: 6px 4px; box-shadow: inset 0 0 0 1px var(--border); align-items: center; }
         .synth-step.on-step { box-shadow: inset 0 0 0 1px var(--accent1), 0 0 6px var(--accent1-glow); }
         .synth-step select { width: 100%; font-family: inherit; font-size: 9px; background: var(--control-bg);
-          color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 3px 2px; }
+          color: var(--control-text); border: 1px solid var(--border); border-radius: 3px; padding: 3px 2px; }
         .synth-step-idx { font-size: 8px; color: var(--label); }
         .synth-keys { position: relative; display: flex; height: 130px; margin-top: 4px; user-select: none; }
         .synth-key-white { flex: 1; background: var(--key-white); border: 1px solid var(--control-bg);
@@ -1759,7 +1817,7 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
         .synth-key-black.held { box-shadow: inset 0 0 0 2px var(--accent1), 0 3px 4px rgba(0,0,0,0.5); }
         .synth-key-black.sounding { background: var(--accent1); }
         .synth-key-black span { font-size: 8px; color: var(--key-black-label); pointer-events: none; }
-        .synth-hint { margin-top: 10px; font-size: 9px; color: var(--label); text-align: center; letter-spacing: 0.04em; }
+        .synth-hint { margin-top: 10px; font-size: 9px; color: var(--hint); text-align: center; letter-spacing: 0.04em; }
         .synth-fx-row { display: flex; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
         .synth-fx-group { flex: 1; min-width: 220px; background: var(--panel-2); border-radius: 10px;
           padding: 12px 16px 14px; box-shadow: inset 0 0 0 1px var(--border); }
@@ -1770,7 +1828,7 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
         .synth-save-btn { flex: none; padding: 5px 10px; }
         .synth-patch-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
         .synth-patch-btn { font-family: inherit; font-size: 9px; padding: 8px 4px;
-          background: var(--control-bg); color: var(--text); border: 1px solid var(--border);
+          background: var(--control-bg); color: var(--control-text); border: 1px solid var(--border);
           border-radius: 5px; cursor: pointer; text-align: center; overflow: hidden;
           text-overflow: ellipsis; white-space: nowrap; transition: 0.15s; }
         .synth-patch-btn:not(.empty):hover { border-color: var(--accent2); }
@@ -1784,7 +1842,7 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
         .synth-patch-naming-label { font-size: 9px; color: var(--label); text-transform: uppercase;
           letter-spacing: 0.06em; white-space: nowrap; }
         .synth-patch-name-input { flex: 1; min-width: 120px; font-family: inherit; font-size: 10px;
-          padding: 6px 8px; background: var(--control-bg); color: var(--text);
+          padding: 6px 8px; background: var(--control-bg); color: var(--control-text);
           border: 1px solid var(--accent1); border-radius: 4px; outline: none; }
         .synth-octave-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 6px; }
         .synth-octave-btn { flex: none; width: 28px; padding: 5px 0; font-size: 12px; }
@@ -1842,15 +1900,6 @@ export default function Synth({ bpm: externalBpm, onBpmChange, bpmLocked = false
       </div>
 
       <div className="synth-controls">
-        <div className="synth-field">
-          <span className="synth-label">Skin</span>
-          <select className="synth-select" value={skin} onChange={(e) => setSkin(e.target.value as SkinName)}>
-            {(["basic", "synthwave", "vintage"] as SkinName[]).map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-
         <div className="synth-field">
           <span className="synth-label">Waveform</span>
           <div className="synth-wave-row">

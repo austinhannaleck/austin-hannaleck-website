@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Sidebar from "./components/Sidebar";
 import StudioExample from "./components/instruments/StudioExample";
 
 type Tab = "home" | "instruments";
@@ -9,35 +10,35 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 function App() {
-  const [tab, setTab] = useState<Tab>("home");
+  // Defaults to the Instruments tab when the URL carries a shared jam link
+  // (see StudioExample.tsx's "share this jam" feature) — otherwise a
+  // pasted link would land on Home, where StudioExample isn't even
+  // mounted to read the `?jam=` param.
+  const [tab, setTab] = useState<Tab>(() =>
+    new URLSearchParams(window.location.search).has("jam") ? "instruments" : "home",
+  );
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="min-h-screen bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-      <nav className="flex justify-center gap-2 border-b border-neutral-200 p-4 dark:border-neutral-800">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.id
-                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
-                : "text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+    <div className="flex min-h-screen bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+      <Sidebar
+        items={TABS}
+        active={tab}
+        onSelect={setTab}
+        collapsed={collapsed}
+        onToggleCollapsed={() => setCollapsed((c) => !c)}
+      />
 
-      {tab === "home" && (
-        <main className="flex flex-col items-center justify-center py-24">
-          <h1 className="text-4xl font-semibold">Austin Hannaleck</h1>
-          <p className="mt-2 text-neutral-500 dark:text-neutral-400">Portfolio — under construction</p>
-        </main>
-      )}
+      <div className="flex-1 overflow-y-auto">
+        {tab === "home" && (
+          <main className="flex flex-col items-center justify-center py-24">
+            <h1 className="text-4xl font-semibold">Austin Hannaleck</h1>
+            <p className="mt-2 text-neutral-500 dark:text-neutral-400">Portfolio — under construction</p>
+          </main>
+        )}
 
-      {tab === "instruments" && <StudioExample />}
+        {tab === "instruments" && <StudioExample />}
+      </div>
     </div>
   );
 }
