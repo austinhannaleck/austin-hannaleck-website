@@ -10,14 +10,17 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { SKIN_PALETTES, skinToCssVars, type SkinName } from "./skins";
+import { TutorialOverlay, type TutorialStep } from "./Tutorial";
 
 /**
  * DrumMachine — a small hardware-styled 16-step drum machine.
  *
  * Standalone by design (no imports from Synth.tsx itself — only the
- * shared skin palettes in ./skins.ts) so it can be dropped into a
- * project on its own and run independently. Every sound is synthesized
- * live via the Web Audio API — no samples, no audio files.
+ * shared skin palettes in ./skins.ts and the shared tutorial overlay in
+ * ./Tutorial.tsx, both narrow utilities with no dependency on the other
+ * instruments) so it can be dropped into a project on its own and run
+ * independently. Every sound is synthesized live via the Web Audio API —
+ * no samples, no audio files.
  *
  * "Playing in tandem" with Synth.tsx just means mounting both — each
  * keeps its own AudioContext, so they mix together in the browser's
@@ -352,6 +355,22 @@ interface DrumMachineProps {
   ref?: Ref<DrumMachineHandle>;
 }
 
+// Two stops — this panel really only has two conceptual areas. See
+// Synth.tsx for the fuller rationale on why these point at existing
+// wrapper elements via `data-tutorial` rather than a dedicated one.
+const TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    target: '[data-tutorial="dm-transport"]',
+    title: "Transport",
+    body: "Play/stop, tempo, volume, and swing (delays the off-beat 16ths for groove). Switch drum kits, or hit clear to wipe the pattern.",
+  },
+  {
+    target: '[data-tutorial="dm-grid"]',
+    title: "Pattern grid",
+    body: "Click a step to toggle it — 16 steps per row, groups of 4 mark the beat. Click a row's label (Kick, Snare…) to preview that drum live.",
+  },
+];
+
 export default function DrumMachine({
   bpm: externalBpm,
   onBpmChange,
@@ -373,6 +392,13 @@ export default function DrumMachine({
   const [swing, setSwing] = useState(0);
   const [kit, setKit] = useState<KitName>("acoustic");
   const [liveHit, setLiveHit] = useState<TrackName | null>(null);
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [tutorialStep, setTutorialStep] = useState<number | null>(null);
+  const closeTutorial = () => setTutorialStep(null);
+  const nextTutorialStep = () =>
+    setTutorialStep((s) => (s === null ? null : s >= TUTORIAL_STEPS.length - 1 ? null : s + 1));
+  const prevTutorialStep = () => setTutorialStep((s) => (s === null ? null : Math.max(0, s - 1)));
 
   const ctxRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
@@ -564,7 +590,7 @@ export default function DrumMachine({
   }, [isPlaying, bpm, ensureAudioGraph]);
 
   return (
-    <div className="dm-root" style={skinToCssVars(SKIN_PALETTES[skin])}>
+    <div className="dm-root" ref={rootRef} style={skinToCssVars(SKIN_PALETTES[skin])}>
       <style>{`
         .dm-root {
           font-family: 'JetBrains Mono', 'Space Mono', monospace;
@@ -574,8 +600,13 @@ export default function DrumMachine({
         }
         .dm-header { display: flex; justify-content: space-between; align-items: baseline;
           margin-bottom: 14px; letter-spacing: 0.06em; }
+        .dm-header-left { display: flex; align-items: baseline; gap: 10px; }
         .dm-title { font-size: 13px; font-weight: 700; color: var(--accent1); }
         .dm-sub { font-size: 10px; color: var(--label); }
+        .dm-tutorial-btn { font-family: inherit; font-size: 9px; padding: 3px 8px; border-radius: 4px;
+          cursor: pointer; letter-spacing: 0.05em; text-transform: uppercase; background: transparent;
+          color: var(--accent2); border: 1px solid var(--border); transition: border-color 0.15s; }
+        .dm-tutorial-btn:hover { border-color: var(--accent2); }
         .dm-transport { display: flex; align-items: center; gap: 14px; background: var(--panel-2);
           border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; box-shadow: inset 0 0 0 1px var(--border);
           flex-wrap: wrap; }
@@ -616,11 +647,27 @@ export default function DrumMachine({
       `}</style>
 
       <div className="dm-header">
-        <span className="dm-title">SIGNAL — drum machine</span>
+        <div className="dm-header-left">
+          <span className="dm-title">SIGNAL — drum machine</span>
+          <button type="button" className="dm-tutorial-btn" onClick={() => setTutorialStep(0)}>
+            tutorial
+          </button>
+        </div>
         <span className="dm-sub">{isPlaying ? `step ${currentStep + 1}/${STEP_COUNT}` : "stopped"}</span>
       </div>
 
-      <div className="dm-transport">
+      {tutorialStep !== null && (
+        <TutorialOverlay
+          rootRef={rootRef}
+          steps={TUTORIAL_STEPS}
+          stepIndex={tutorialStep}
+          onNext={nextTutorialStep}
+          onBack={prevTutorialStep}
+          onClose={closeTutorial}
+        />
+      )}
+
+      <div className="dm-transport" data-tutorial="dm-transport">
         <button type="button" className={`dm-play-btn${isPlaying ? " active" : ""}`}
           onClick={() => setIsPlaying((v) => !v)}>{isPlaying ? "stop" : "play"}</button>
 
@@ -652,7 +699,7 @@ export default function DrumMachine({
         <button type="button" className="dm-clear-btn" onClick={clearPattern}>clear</button>
       </div>
 
-      <div className="dm-grid">
+      <div className="dm-grid" data-tutorial="dm-grid">
         {TRACKS.map((track) => (
           <div key={track.id} className="dm-row">
             <button

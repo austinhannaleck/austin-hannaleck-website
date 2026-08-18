@@ -115,10 +115,10 @@ function IconWave() {
 }
 
 type ResumeProps = {
-  onViewInstruments?: () => void;
+  onOpenSignal?: () => void;
 };
 
-function Resume({ onViewInstruments }: ResumeProps) {
+function Resume({ onOpenSignal }: ResumeProps) {
   return (
     <main className="mx-auto max-w-4xl px-6 py-16 sm:px-10">
       <header className="mb-10">
@@ -168,10 +168,10 @@ function Resume({ onViewInstruments }: ResumeProps) {
             with React, TypeScript, and the raw Web Audio API, right here on this site.
           </span>
         </p>
-        {onViewInstruments && (
+        {onOpenSignal && (
           <button
             type="button"
-            onClick={onViewInstruments}
+            onClick={onOpenSignal}
             className="shrink-0 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
           >
             Try it out

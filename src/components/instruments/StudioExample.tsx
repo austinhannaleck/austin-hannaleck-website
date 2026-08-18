@@ -489,63 +489,166 @@ export default function StudioExample() {
             border: `1px solid ${isSessionRecording ? "#ff7a1a" : "#3a372f"}`,
           }}
         >
-          {isSessionRecording ? `● recording session ${formatTime(sessionRecordingSeconds)}` : "record session"}
+          {isSessionRecording ? "■ stop recording" : "record session"}
         </button>
+      </div>
 
-        {shareUrl && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%" }}>
-            <input
-              type="text"
-              readOnly
-              value={shareUrl}
-              onFocus={(e) => e.currentTarget.select()}
-              style={{
-                flex: 1,
-                fontFamily: "inherit",
-                fontSize: "10px",
-                padding: "7px 10px",
-                borderRadius: "6px",
-                background: "#141310",
-                color: "#e8e4dc",
-                border: "1px solid #3a372f",
-              }}
-            />
-            <span style={{ fontSize: "10px", color: shareCopied ? "#3ed6c4" : "#a8a299", whiteSpace: "nowrap" }}>
-              {shareCopied ? "copied!" : "select & copy"}
-            </span>
-          </div>
-        )}
-
-        {sessionRecordingUrl && !isSessionRecording && (
-          <audio
-            controls
-            src={sessionRecordingUrl}
-            controlsList="nodownload noplaybackrate noremoteplayback"
-            style={{ height: "32px", maxWidth: "240px", colorScheme: "dark" }}
+      {/* Its own panel, separate from the toolbar above, so a long share URL
+          never has to compete for row space with tempo/skin/record controls. */}
+      {shareUrl && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "14px",
+            background: "#1c1b19",
+            border: "1px solid #3ed6c4",
+            borderRadius: "10px",
+            padding: "10px 18px",
+            width: "100%",
+            maxWidth: "780px",
+            boxSizing: "border-box",
+            flexWrap: "wrap",
+          }}
+        >
+          <span style={{ fontSize: "11px", color: "#3ed6c4", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>
+            🔗 shareable jam link
+          </span>
+          <input
+            type="text"
+            readOnly
+            value={shareUrl}
+            onFocus={(e) => e.currentTarget.select()}
+            style={{
+              flex: 1,
+              minWidth: "160px",
+              fontFamily: "inherit",
+              fontSize: "10px",
+              padding: "7px 10px",
+              borderRadius: "6px",
+              background: "#141310",
+              color: "#e8e4dc",
+              border: "1px solid #3a372f",
+            }}
           />
-        )}
-
-        {sessionRecordingUrl && !isSessionRecording && (
-          <a
-            href={sessionRecordingUrl}
-            download="studio-session.webm"
+          <span style={{ fontSize: "10px", color: shareCopied ? "#3ed6c4" : "#a8a299", whiteSpace: "nowrap" }}>
+            {shareCopied ? "copied!" : "select & copy"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setShareUrl(null)}
             style={{
               fontFamily: "inherit",
               fontSize: "11px",
-              padding: "8px 16px",
+              padding: "8px 14px",
               borderRadius: "6px",
               cursor: "pointer",
-              letterSpacing: "0.05em",
-              textDecoration: "none",
-              background: "#141310",
-              color: "#3ed6c4",
-              border: "1px solid #3ed6c4",
+              marginLeft: "auto",
+              background: "transparent",
+              color: "#a8a299",
+              border: "1px solid #3a372f",
             }}
           >
-            download session
-          </a>
-        )}
-      </div>
+            dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Its own panel too — this is exactly what used to crowd the toolbar
+          once a recording finished (button + timer + player + download link
+          all fighting for the same row). Recording state now gets a full
+          row to itself, and only appears at all once it's relevant. */}
+      {(isSessionRecording || sessionRecordingUrl) && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "14px",
+            background: "#1c1b19",
+            border: "1px solid #ff7a1a",
+            borderRadius: "10px",
+            padding: "10px 18px",
+            width: "100%",
+            maxWidth: "780px",
+            boxSizing: "border-box",
+            flexWrap: "wrap",
+          }}
+        >
+          {isSessionRecording ? (
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                fontSize: "11px",
+                color: "#ff7a1a",
+                letterSpacing: "0.03em",
+              }}
+            >
+              <span
+                style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: "#ff7a1a",
+                  animation: "studio-rec-pulse 1.2s ease-in-out infinite",
+                }}
+              />
+              recording session · {formatTime(sessionRecordingSeconds)}
+            </span>
+          ) : (
+            <>
+              <span style={{ fontSize: "11px", color: "#ff7a1a", letterSpacing: "0.03em", whiteSpace: "nowrap" }}>
+                ● session recorded
+              </span>
+              <audio
+                controls
+                src={sessionRecordingUrl ?? undefined}
+                controlsList="nodownload noplaybackrate noremoteplayback"
+                style={{ height: "32px", maxWidth: "240px", colorScheme: "dark" }}
+              />
+              <a
+                href={sessionRecordingUrl ?? undefined}
+                download="studio-session.webm"
+                style={{
+                  fontFamily: "inherit",
+                  fontSize: "11px",
+                  padding: "8px 16px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  letterSpacing: "0.05em",
+                  textDecoration: "none",
+                  background: "#141310",
+                  color: "#3ed6c4",
+                  border: "1px solid #3ed6c4",
+                }}
+              >
+                download session
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  if (sessionRecordingUrl) URL.revokeObjectURL(sessionRecordingUrl);
+                  setSessionRecordingUrl(null);
+                }}
+                style={{
+                  fontFamily: "inherit",
+                  fontSize: "11px",
+                  padding: "8px 14px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  marginLeft: "auto",
+                  background: "transparent",
+                  color: "#a8a299",
+                  border: "1px solid #3a372f",
+                }}
+              >
+                dismiss
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {loadedJam && (
         <div
@@ -644,6 +747,10 @@ export default function StudioExample() {
         @keyframes studio-beat-pulse {
           0% { opacity: 0.9; }
           100% { opacity: 0; }
+        }
+        @keyframes studio-rec-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(0.8); }
         }
       `}</style>
     </div>
