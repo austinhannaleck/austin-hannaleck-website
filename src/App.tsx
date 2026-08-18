@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Sidebar from "./components/Sidebar";
+import Resume from "./components/Resume";
 import StudioExample from "./components/instruments/StudioExample";
 
 type Tab = "home" | "instruments" | "resume";
@@ -38,16 +39,9 @@ function App() {
           </main>
         )}
 
-        {tab === "resume" && (
-          <main className="flex flex-col items-center justify-center py-24">
-            <h1 className="text-4xl font-semibold">Resume</h1>
-            <p className="mt-2 text-neutral-500 dark:text-neutral-400">Coming soon</p>
-          </main>
-        )}
+        {tab === "resume" && <Resume onViewInstruments={() => setTab("instruments")} />}
 
         {tab === "instruments" && <StudioExample />}
-
-        
       </div>
     </div>
   );
