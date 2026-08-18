@@ -10,6 +10,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { SKIN_PALETTES, skinToCssVars, type SkinName } from "./skins";
+import { TutorialOverlay, type TutorialStep } from "./Tutorial";
 
 /**
  * Bassline — a 16-step monophonic acid-bass sequencer, TB-303-inspired:
@@ -281,6 +282,26 @@ interface BasslineProps {
   ref?: Ref<BasslineHandle>;
 }
 
+// See Synth.tsx for the fuller rationale on the shared TutorialOverlay and
+// why steps target existing wrapper elements via `data-tutorial`.
+const TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    target: '[data-tutorial="bl-transport"]',
+    title: "Transport",
+    body: "Play/stop, tempo, and volume. Hit clear to wipe the pattern and start fresh.",
+  },
+  {
+    target: '[data-tutorial="bl-controls"]',
+    title: "Shape the sound",
+    body: "Classic acid-bass controls — waveform, filter cutoff/resonance, envelope mod, and decay. Crank Resonance and Env Mod together for the 303 “squelch.”",
+  },
+  {
+    target: '[data-tutorial="bl-steps"]',
+    title: "Program the pattern",
+    body: "Pick a note per step, or leave it blank to rest. “A” accents a step (louder + brighter); “S” slides into the next note.",
+  },
+];
+
 export default function Bassline({
   bpm: externalBpm,
   onBpmChange,
@@ -307,6 +328,13 @@ export default function Bassline({
   const [decay, setDecay] = useState(0.16);
   const [accentAmount, setAccentAmount] = useState(0.6);
   const [subLevel, setSubLevel] = useState(0.3);
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [tutorialStep, setTutorialStep] = useState<number | null>(null);
+  const closeTutorial = () => setTutorialStep(null);
+  const nextTutorialStep = () =>
+    setTutorialStep((s) => (s === null ? null : s >= TUTORIAL_STEPS.length - 1 ? null : s + 1));
+  const prevTutorialStep = () => setTutorialStep((s) => (s === null ? null : Math.max(0, s - 1)));
 
   const ctxRef = useRef<AudioContext | null>(null);
   const oscRef = useRef<OscillatorNode | null>(null);
@@ -546,7 +574,7 @@ export default function Bassline({
   }, [isPlaying, bpm, ensureAudioGraph]);
 
   return (
-    <div className="bl-root" style={skinToCssVars(SKIN_PALETTES[skin])}>
+    <div className="bl-root" ref={rootRef} style={skinToCssVars(SKIN_PALETTES[skin])}>
       <style>{`
         .bl-root {
           font-family: 'JetBrains Mono', 'Space Mono', monospace;
@@ -556,8 +584,13 @@ export default function Bassline({
         }
         .bl-header { display: flex; justify-content: space-between; align-items: baseline;
           margin-bottom: 14px; letter-spacing: 0.06em; }
+        .bl-header-left { display: flex; align-items: baseline; gap: 10px; }
         .bl-title { font-size: 13px; font-weight: 700; color: var(--accent1); }
         .bl-sub { font-size: 10px; color: var(--label); }
+        .bl-tutorial-btn { font-family: inherit; font-size: 9px; padding: 3px 8px; border-radius: 4px;
+          cursor: pointer; letter-spacing: 0.05em; text-transform: uppercase; background: transparent;
+          color: var(--accent2); border: 1px solid var(--border); transition: border-color 0.15s; }
+        .bl-tutorial-btn:hover { border-color: var(--accent2); }
         .bl-transport { display: flex; align-items: center; gap: 14px; background: var(--panel-2);
           border-radius: 10px; padding: 12px 16px; margin-bottom: 12px; box-shadow: inset 0 0 0 1px var(--border);
           flex-wrap: wrap; }
@@ -613,11 +646,27 @@ export default function Bassline({
       `}</style>
 
       <div className="bl-header">
-        <span className="bl-title">SIGNAL — bassline</span>
+        <div className="bl-header-left">
+          <span className="bl-title">SIGNAL — bassline</span>
+          <button type="button" className="bl-tutorial-btn" onClick={() => setTutorialStep(0)}>
+            tutorial
+          </button>
+        </div>
         <span className="bl-sub">{isPlaying ? `step ${currentStep + 1}/${STEP_COUNT}` : "stopped"}</span>
       </div>
 
-      <div className="bl-transport">
+      {tutorialStep !== null && (
+        <TutorialOverlay
+          rootRef={rootRef}
+          steps={TUTORIAL_STEPS}
+          stepIndex={tutorialStep}
+          onNext={nextTutorialStep}
+          onBack={prevTutorialStep}
+          onClose={closeTutorial}
+        />
+      )}
+
+      <div className="bl-transport" data-tutorial="bl-transport">
         <button type="button" className={`bl-play-btn${isPlaying ? " active" : ""}`}
           onClick={() => setIsPlaying((v) => !v)}>{isPlaying ? "stop" : "play"}</button>
 
@@ -634,7 +683,7 @@ export default function Bassline({
         <button type="button" className="bl-clear-btn" onClick={clearPattern}>clear</button>
       </div>
 
-      <div className="bl-controls">
+      <div className="bl-controls" data-tutorial="bl-controls">
         <div className="bl-field">
           <span className="bl-field-label">Waveform</span>
           <div className="bl-wave-row">
@@ -685,7 +734,7 @@ export default function Bassline({
         </div>
       </div>
 
-      <div className="bl-steps">
+      <div className="bl-steps" data-tutorial="bl-steps">
         {pattern.map((step, i) => (
           <div
             key={i}

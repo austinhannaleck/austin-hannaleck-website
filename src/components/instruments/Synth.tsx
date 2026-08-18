@@ -10,6 +10,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { SKIN_PALETTES, skinToCssVars, type SkinName, type SkinPalette } from "./skins";
+import { TutorialOverlay, type TutorialStep } from "./Tutorial";
 
 /**
  * Synth — a small hardware-styled synthesizer with a mono/poly switch,
@@ -435,8 +436,24 @@ function Knob({ value, min, max, step = 0, onChange, bipolarZero, size = 46, ari
     [min, max, step],
   );
 
+  // The "dragging" class is toggled imperatively (not React state) so
+  // holding/dragging a knob doesn't trigger a re-render on every pointer
+  // move — it only ever needs to flip on/off once per drag. Applied to the
+  // knob itself and to the enclosing .synth-field (every Knob usage is
+  // wrapped in one) so its label text can highlight too, mirroring the
+  // patch-slot hover glow elsewhere in this panel.
   const handlePointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
+    // preventDefault suppresses the browser's default mouse-focuses-target
+    // behavior. Without it, a mouse-driven drag leaves the knob holding
+    // keyboard focus — so pressing any key afterward (e.g. playing a note)
+    // makes the browser's `:focus-visible` heuristic kick in for this
+    // knob, and since that shares the same glow as `.dragging`, the knob
+    // looked stuck "backlit" after the drag ended. Keyboard users tabbing
+    // to the knob are unaffected, since this only fires on pointerdown.
+    e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
+    e.currentTarget.classList.add("dragging");
+    e.currentTarget.closest(".synth-field")?.classList.add("dragging");
     dragRef.current = { startY: e.clientY, startValue: value };
   };
   const handlePointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
@@ -447,6 +464,8 @@ function Knob({ value, min, max, step = 0, onChange, bipolarZero, size = 46, ari
   };
   const endDrag = (e: ReactPointerEvent<SVGSVGElement>) => {
     dragRef.current = null;
+    e.currentTarget.classList.remove("dragging");
+    e.currentTarget.closest(".synth-field")?.classList.remove("dragging");
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
@@ -551,6 +570,40 @@ interface SynthProps {
   ref?: Ref<SynthHandle>;
 }
 
+// --- Tutorial steps -----------------------------------------------------
+// Data for the shared TutorialOverlay (see ./Tutorial.tsx) — five stops,
+// each pointing at an already-existing panel via a `data-tutorial`
+// attribute. Deliberately not exhaustive: patches, sound-shaping, play
+// mode, FX, and the keyboard, not a knob-by-knob walkthrough.
+const TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    target: '[data-tutorial="patches"]',
+    title: "Patches",
+    body: "Save, load, and randomize whole sounds. Hit “random” for instant inspiration, then “save” to keep the ones you like.",
+  },
+  {
+    target: '[data-tutorial="controls"]',
+    title: "Shape the sound",
+    body: "Pick a waveform, sculpt it with the filter, and shape its volume over time with the envelope — attack, decay, sustain, release.",
+  },
+  {
+    target: '[data-tutorial="mode"]',
+    title: "Play mode",
+    body: "Keys plays notes you hold. Arp turns a held chord into a repeating pattern. Seq is a step sequencer you program by hand.",
+  },
+  {
+    target: '[data-tutorial="fx"]',
+    title: "Effects",
+    body: "Chorus, delay, reverb, and an LFO for movement — each with its own on/off switch and knobs.",
+  },
+  {
+    target: '[data-tutorial="keys"]',
+    title: "Play it",
+    body: "Click the keys, or play from your computer keyboard (A S D F G…). “Hear a demo” up top is a good reference anytime.",
+  },
+];
+// -----------------------------------------------------------------------
+
 export default function Synth({
   bpm: externalBpm,
   onBpmChange,
@@ -580,6 +633,17 @@ export default function Synth({
   const [mode, setMode] = useState<PlayMode>("keys");
   const [voiceMode, setVoiceMode] = useState<VoiceMode>("mono");
   const [octaveShift, setOctaveShift] = useState(0);
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [tutorialStep, setTutorialStep] = useState<number | null>(null);
+  const startTutorial = () => {
+    setMode("keys");
+    setTutorialStep(0);
+  };
+  const closeTutorial = () => setTutorialStep(null);
+  const nextTutorialStep = () =>
+    setTutorialStep((s) => (s === null ? null : s >= TUTORIAL_STEPS.length - 1 ? null : s + 1));
+  const prevTutorialStep = () => setTutorialStep((s) => (s === null ? null : Math.max(0, s - 1)));
   const [internalBpm, setInternalBpm] = useState(120);
   const bpm = externalBpm ?? internalBpm;
   const handleBpmChange = (v: number) => {
@@ -626,7 +690,9 @@ export default function Synth({
   const [saveMode, setSaveMode] = useState(false);
   const [savingSlotIndex, setSavingSlotIndex] = useState<number | null>(null);
   const [patchNameDraft, setPatchNameDraft] = useState("");
-  const [activePatchIndex, setActivePatchIndex] = useState<number | null>(null);
+  // Starts on slot 0 ("Init") rather than null — a patch is always
+  // "selected" so there's always a slot to save into (see handleRandomize).
+  const [activePatchIndex, setActivePatchIndex] = useState<number | null>(0);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   const [heldKeys, setHeldKeys] = useState<Set<string>>(new Set());
@@ -851,9 +917,13 @@ export default function Synth({
     }
   };
 
+  // Deliberately leaves activePatchIndex untouched: randomizing keeps
+  // whatever slot was already selected "current," so save mode can still
+  // offer to overwrite it with the randomized result. Clearing it here was
+  // the original bug — it made the randomized patch unsaveable, since
+  // nothing was left selected to save into.
   const handleRandomize = () => {
     applyPatch(randomizePatch());
-    setActivePatchIndex(null);
     setSaveMode(false);
     setSavingSlotIndex(null);
   };
@@ -1639,12 +1709,21 @@ export default function Synth({
   }, [mode, voiceMode, allNotesOff]);
 
   useEffect(() => {
+    // Ignore computer-keyboard note input while a text field (e.g. the
+    // patch-naming input) has focus — otherwise typing a patch name plays
+    // the synth, since these are plain window listeners and React's
+    // onKeyDown on the input doesn't stop the event from bubbling there.
+    const isTypingTarget = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+    };
     const handleDown = (e: KeyboardEvent) => {
-      if (e.repeat) return;
+      if (e.repeat || isTypingTarget(e.target)) return;
       const note = COMPUTER_KEY_MAP[e.key.toLowerCase()];
       if (note) handlePress(note);
     };
     const handleUp = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return;
       const note = COMPUTER_KEY_MAP[e.key.toLowerCase()];
       if (note) handleRelease(note);
     };
@@ -1771,7 +1850,7 @@ export default function Synth({
   const showLegato = mode === "keys" && voiceMode === "mono";
 
   return (
-    <div className="synth-root" style={skinToCssVars(SKIN_PALETTES[skin])}>
+    <div className="synth-root" ref={rootRef} style={skinToCssVars(SKIN_PALETTES[skin])}>
       <style>{`
         .synth-root {
           font-family: 'JetBrains Mono', 'Space Mono', monospace;
@@ -1781,8 +1860,13 @@ export default function Synth({
         }
         .synth-header { display: flex; justify-content: space-between; align-items: baseline;
           margin-bottom: 14px; letter-spacing: 0.06em; }
+        .synth-header-left { display: flex; align-items: baseline; gap: 10px; }
         .synth-title { font-size: 13px; font-weight: 700; color: var(--accent1); }
         .synth-voice { font-size: 10px; color: var(--accent2); min-width: 90px; text-align: right; }
+        .synth-tutorial-btn { font-family: inherit; font-size: 9px; padding: 3px 8px; border-radius: 4px;
+          cursor: pointer; letter-spacing: 0.05em; text-transform: uppercase; background: transparent;
+          color: var(--accent2); border: 1px solid var(--border); transition: border-color 0.15s; }
+        .synth-tutorial-btn:hover { border-color: var(--accent2); }
         .synth-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
           gap: 14px; background: var(--panel-2); border-radius: 10px; padding: 14px 16px;
           margin-bottom: 12px; box-shadow: inset 0 0 0 1px var(--border); }
@@ -1797,13 +1881,14 @@ export default function Synth({
         .synth-field:has(.synth-wave-row) { align-items: stretch; }
         .synth-knob-svg { cursor: ns-resize; touch-action: none; outline: none; }
         .synth-knob-svg.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
-        .synth-knob-svg:focus-visible { filter: drop-shadow(0 0 3px var(--accent2-glow)); }
+        .synth-knob-svg:focus-visible, .synth-knob-svg.dragging { filter: drop-shadow(0 0 4px var(--accent2-glow)); }
         .synth-knob-track { stroke: var(--border); stroke-width: 4; stroke-linecap: round; }
         .synth-knob-fill { stroke: var(--accent1); stroke-width: 4; stroke-linecap: round;
           filter: drop-shadow(0 0 2px var(--accent1-glow)); }
         .synth-knob-cap { fill: var(--control-bg); stroke: var(--border); stroke-width: 1; }
         .synth-knob-pointer { stroke: var(--accent2); stroke-width: 2; stroke-linecap: round; }
-        .synth-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--label); }
+        .synth-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--label); transition: color 0.1s; }
+        .synth-field.dragging .synth-label { color: var(--accent2); }
         .synth-wave-row { display: flex; gap: 4px; flex-wrap: wrap; }
         .synth-wave-btn { flex: 1; font-family: inherit; font-size: 9px; padding: 6px 4px;
           background: var(--control-bg); color: var(--control-text); border: 1px solid var(--border);
@@ -1847,7 +1932,7 @@ export default function Synth({
           background: var(--control-bg); color: var(--control-text); border: 1px solid var(--border);
           border-radius: 5px; cursor: pointer; text-align: center; overflow: hidden;
           text-overflow: ellipsis; white-space: nowrap; transition: 0.15s; }
-        .synth-patch-btn:not(.empty):hover { border-color: var(--accent2); }
+        .synth-patch-btn:hover { border-color: var(--accent2); }
         .synth-patch-btn.empty { color: var(--label); border-style: dashed; cursor: default; }
         .synth-patch-btn.save-armed { cursor: pointer; }
         .synth-patch-btn.save-armed:not(.empty) { border-color: var(--accent1); box-shadow: 0 0 6px var(--accent1-glow); }
@@ -1867,13 +1952,34 @@ export default function Synth({
       `}</style>
 
       <div className="synth-header">
-        <span className="synth-title">SIGNAL — {mode === "keys" ? voiceMode : "mono"} synth</span>
-        <span className="synth-voice">
-          {soundingNote ? `note: ${soundingNote}${octaveShift !== 0 ? ` (oct ${octaveShift > 0 ? "+" : ""}${octaveShift})` : ""}` : "note: —"}
-        </span>
+        <div className="synth-header-left">
+          <span className="synth-title">SIGNAL — {mode === "keys" ? voiceMode : "mono"} synth</span>
+          <button type="button" className="synth-tutorial-btn" onClick={startTutorial}>
+            tutorial
+          </button>
+        </div>
+        {/* Poly (keys mode only — arp/seq are always single-voice) plays
+            several notes at once, so there's no single "current note" to
+            show here. */}
+        {!(mode === "keys" && voiceMode === "poly") && (
+          <span className="synth-voice">
+            {soundingNote ? `note: ${soundingNote}${octaveShift !== 0 ? ` (oct ${octaveShift > 0 ? "+" : ""}${octaveShift})` : ""}` : "note: —"}
+          </span>
+        )}
       </div>
 
-      <div className="synth-fx-group synth-patches">
+      {tutorialStep !== null && (
+        <TutorialOverlay
+          rootRef={rootRef}
+          steps={TUTORIAL_STEPS}
+          stepIndex={tutorialStep}
+          onNext={nextTutorialStep}
+          onBack={prevTutorialStep}
+          onClose={closeTutorial}
+        />
+      )}
+
+      <div className="synth-fx-group synth-patches" data-tutorial="patches">
         <div className="synth-fx-header">
           <span className="synth-fx-title">Patches</span>
           {savingSlotIndex === null && (
@@ -1915,7 +2021,7 @@ export default function Synth({
         )}
       </div>
 
-      <div className="synth-controls">
+      <div className="synth-controls" data-tutorial="controls">
         <div className="synth-field">
           <span className="synth-label">Waveform</span>
           <div className="synth-wave-row">
@@ -2028,7 +2134,7 @@ export default function Synth({
         </div>
       </div>
 
-      <div className="synth-controls synth-mode-row">
+      <div className="synth-controls synth-mode-row" data-tutorial="mode">
         <div className="synth-field">
           <span className="synth-label">Mode</span>
           <div className="synth-wave-row">
@@ -2101,7 +2207,7 @@ export default function Synth({
         )}
       </div>
 
-      <div className="synth-fx-row">
+      <div className="synth-fx-row" data-tutorial="fx">
         <div className="synth-fx-group">
           <div className="synth-fx-header">
             <span className="synth-fx-title">Chorus</span>
@@ -2219,7 +2325,7 @@ export default function Synth({
           onClick={() => setOctaveShift((v) => Math.min(3, v + 1))} disabled={octaveShift >= 3}>+</button>
       </div>
 
-      <div className="synth-keys">
+      <div className="synth-keys" data-tutorial="keys">
         {KEYS.filter((k) => !k.isSharp).map((key) => {
           const isSounding =
             mode === "keys" && voiceMode === "poly" ? polyActiveNotes.has(key.note) : soundingNote === key.note;

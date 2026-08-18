@@ -1,4 +1,6 @@
-type NavItem<T extends string> = { id: T; label: string };
+import type { ReactNode } from "react";
+
+type NavItem<T extends string> = { id: T; label: string; icon: ReactNode };
 
 type SidebarProps<T extends string> = {
   items: NavItem<T>[];
@@ -49,7 +51,7 @@ function Sidebar<T extends string>({
               type="button"
               onClick={() => onSelect(item.id)}
               title={collapsed ? item.label : undefined}
-              className={`flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 collapsed ? "justify-center" : "justify-start"
               } ${
                 active === item.id
@@ -57,7 +59,8 @@ function Sidebar<T extends string>({
                   : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-neutral-100"
               }`}
             >
-              {collapsed ? item.label.charAt(0) : item.label}
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center">{item.icon}</span>
+              {!collapsed && <span>{item.label}</span>}
             </button>
           </li>
         ))}
