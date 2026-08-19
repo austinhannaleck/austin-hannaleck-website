@@ -6,6 +6,7 @@ import Apps, { type AppId } from "./components/Apps";
 import About from "./components/About";
 import StudioExample from "./components/instruments/StudioExample";
 import HiveMind from "./components/apps/HiveMind";
+import GetTheBuggy from "./components/apps/GetTheBuggy";
 
 type Tab = "home" | "resume" | "apps" | "about";
 
@@ -148,6 +149,7 @@ function App() {
             <div className="flex-1">
               {activeApp === "signal" && <StudioExample />}
               {activeApp === "hivemind" && <HiveMind />}
+              {activeApp === "buggy" && <GetTheBuggy />}
             </div>
           </div>
         )}

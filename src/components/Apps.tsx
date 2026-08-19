@@ -1,4 +1,4 @@
-export type AppId = "signal" | "hivemind";
+export type AppId = "signal" | "hivemind" | "buggy";
 
 type AppEntry = {
   id: AppId;
@@ -26,6 +26,15 @@ const APPS: AppEntry[] = [
     description: "A new app — details to come.",
     status: "under-construction",
     accent: "from-indigo-500 to-purple-500",
+  },
+  {
+    id: "buggy",
+    name: "Get the Buggy",
+    tagline: "Snake, starring Banjo",
+    description:
+      "A Snake-style game starring my dog Banjo — chase down bugs, grow your tail, and try not to run into a wall (or yourself).",
+    status: "live",
+    accent: "from-emerald-500 to-lime-500",
   },
 ];
 
