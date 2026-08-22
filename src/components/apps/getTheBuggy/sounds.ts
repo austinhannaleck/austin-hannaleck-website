@@ -114,6 +114,13 @@ export function playPowerupPickupSound(type: PowerupType) {
   playArpeggio(ctx, ctx.currentTime, POWERUP_PICKUP_ARPEGGIOS[type]);
 }
 
+// A flat, urgent "beep" — used three times (3, 2, 1) as broccoli's
+// invincibility is about to wear off, since the glow alone is easy to
+// miss once the board is scrolling by fast.
+export function playCountdownBeepSound() {
+  playTone(1000, 1000, 0.09, "square", 0.2);
+}
+
 // A quick descending "poof" — mushroom's tail-shrink.
 export function playMushroomPickupSound() {
   playTone(500, 180, 0.22, "triangle", 0.18);

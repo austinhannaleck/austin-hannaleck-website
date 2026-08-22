@@ -1,4 +1,4 @@
-import type { Direction, PowerupType } from "./types";
+import type { Direction } from "./types";
 
 // Drawn facing "right" — rotated per direction so Banjo always faces
 // the way he's moving.
@@ -17,30 +17,7 @@ type BanjoSegmentProps = {
   // as the game speeds up, a turn animation can still be running when
   // the next tick arrives, which reads as input lag.
   turnDurationMs: number;
-  // Active power-up, if any — each type gets its own glow. The keyframes
-  // themselves live once in GetTheBuggy.tsx rather than here, since
-  // Banjo renders once per segment — embedding a <style> tag per
-  // instance would duplicate the same rules across every segment as the
-  // snake grows. `isWrapBuffer` only matters for "broccoli" (see
-  // POWERUP_WRAP_BUFFER_MS in types.ts).
-  activePowerupType: PowerupType | null;
-  isWrapBuffer: boolean;
 };
-
-function glowClassFor(type: PowerupType | null, isWrapBuffer: boolean): string {
-  switch (type) {
-    case "broccoli":
-      return isWrapBuffer ? "buggy-wrap-buffer" : "buggy-invincible";
-    case "carrot":
-      return "buggy-glow-carrot";
-    case "mint":
-      return "buggy-glow-mint";
-    case "magnet":
-      return "buggy-glow-magnet";
-    case null:
-      return "";
-  }
-}
 
 function BanjoHead() {
   return (
@@ -64,30 +41,18 @@ function BanjoBody() {
   );
 }
 
-export default function Banjo({
-  segment,
-  direction,
-  turnDurationMs,
-  activePowerupType,
-  isWrapBuffer,
-}: BanjoSegmentProps) {
-  const glowClass = glowClassFor(activePowerupType, isWrapBuffer);
+export default function Banjo({ segment, direction, turnDurationMs }: BanjoSegmentProps) {
+  if (segment === "body") return <BanjoBody />;
 
-  const sprite =
-    segment === "body" ? (
-      <BanjoBody />
-    ) : (
-      <div
-        className="h-full w-full"
-        style={{
-          transform: `rotate(${ROTATION_FOR_DIRECTION[direction]}deg)`,
-          transition: `transform ${turnDurationMs}ms ease`,
-        }}
-      >
-        <BanjoHead />
-      </div>
-    );
-
-  if (!glowClass) return sprite;
-  return <div className={`h-full w-full ${glowClass}`}>{sprite}</div>;
+  return (
+    <div
+      className="h-full w-full"
+      style={{
+        transform: `rotate(${ROTATION_FOR_DIRECTION[direction]}deg)`,
+        transition: `transform ${turnDurationMs}ms ease`,
+      }}
+    >
+      <BanjoHead />
+    </div>
+  );
 }

@@ -28,8 +28,6 @@ export type ActivePowerup = {
   // pauses along with the game — no separate bookkeeping needed for
   // "how long were we paused."
   ticksRemaining: number;
-  // Only meaningful for "broccoli" — see POWERUP_WRAP_BUFFER_MS below.
-  wrapTicksRemaining: number;
 };
 
 export type GameState = {
@@ -58,11 +56,8 @@ export const SPEEDUP_PER_BUG_MS = 6;
 export const PICKUP_SPAWN_CHANCE = 0.2;
 
 // Broccoli: a Mario-star-style power-up. Invincible (no self-collision
-// death) for the full duration; wall wrap-around only holds for the
-// first chunk of it, so the last couple seconds act as a fair warning
-// that walls are about to matter again before invincibility itself ends.
+// death) and wall wrap-around, both for the full duration.
 export const POWERUP_DURATION_MS = 15_000;
-export const POWERUP_WRAP_BUFFER_MS = 2_000;
 
 // Carrot: fixed fast tick rate regardless of score — a skill-testing
 // speed boost rather than a defensive buff like broccoli.
@@ -74,10 +69,15 @@ export const CARROT_TICK_MS = 65;
 export const MINT_DURATION_MS = 8_000;
 export const MINT_TICK_MS = 260;
 
-// Magnet: doesn't touch collision or speed — just biases where the next
-// few bugs spawn to be nearer Banjo, an easier-mode pickup.
+// Magnet: doesn't touch collision or speed — drags the current bug one
+// cell closer to Banjo every tick, and biases where the next one spawns
+// too, an easier-mode pickup.
 export const MAGNET_DURATION_MS = 10_000;
 export const MAGNET_PULL_RADIUS = 5;
+// Cells per tick the pull moves the bug on each axis — has to beat
+// Banjo's own 1-cell-per-tick pace, or a bug trailing directly behind a
+// straight run never actually closes the gap.
+export const MAGNET_PULL_SPEED = 2;
 
 // Mushroom: instant effect on pickup, no timer — cuts the tail down,
 // floored so the snake never shrinks below its starting length.

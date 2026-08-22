@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { GRID_SIZE, type PickupType } from "./getTheBuggy/types";
+import { GRID_SIZE, type PickupType, type PowerupType } from "./getTheBuggy/types";
 import Banjo from "./getTheBuggy/Banjo";
 import Broccoli from "./getTheBuggy/Broccoli";
 import Bug from "./getTheBuggy/Bug";
@@ -10,6 +10,7 @@ import LeaderboardList from "./getTheBuggy/Leaderboard";
 import Magnet from "./getTheBuggy/Magnet";
 import Mint from "./getTheBuggy/Mint";
 import Mushroom from "./getTheBuggy/Mushroom";
+import PowerupGuide from "./getTheBuggy/PowerupGuide";
 import {
   buildEntry,
   insertScore,
@@ -31,6 +32,27 @@ const POWERUP_HUD = {
   mint: { icon: "🌿", label: "Slow-mo!" },
   magnet: { icon: "🧲", label: "Magnet!" },
 };
+
+// Applied once to a wrapper around the whole snake, not per-segment —
+// each segment glowing independently meant a freshly-grown tail segment
+// (a brand-new DOM node) started its CSS animation at 0% while the rest
+// of the snake was already mid-cycle, so the new segment visibly flashed
+// out of phase with the others. One shared animated element has no
+// "when did this node mount" to desync from.
+function glowClassFor(type: PowerupType | null): string {
+  switch (type) {
+    case "broccoli":
+      return "buggy-invincible";
+    case "carrot":
+      return "buggy-glow-carrot";
+    case "mint":
+      return "buggy-glow-mint";
+    case "magnet":
+      return "buggy-glow-magnet";
+    case null:
+      return "";
+  }
+}
 
 function PickupSprite({ type }: { type: PickupType }) {
   switch (type) {
@@ -54,7 +76,6 @@ function GetTheBuggy() {
   const { banjo, bug, pickup, direction, score, status, activePowerup } = gameState;
 
   const activePowerupType = activePowerup?.type ?? null;
-  const isWrapBuffer = activePowerup?.type === "broccoli" && activePowerup.wrapTicksRemaining === 0;
   const powerupSecondsLeft = activePowerup
     ? Math.max(1, Math.ceil((activePowerup.ticksRemaining * tickIntervalMs) / 1000))
     : 0;
@@ -149,17 +170,14 @@ function GetTheBuggy() {
         </p>
       </header>
 
-      <div className="mb-3 flex items-baseline gap-4 text-lg font-semibold">
+      <PowerupGuide />
+
+      <div className="mt-6 mb-3 flex items-baseline gap-4 text-lg font-semibold">
         <span>Score: {score}</span>
         <span className="text-sm font-normal text-neutral-500 dark:text-neutral-400">Best: {bestScore}</span>
         {activePowerupType && (
-          <span
-            className={`text-sm font-semibold ${
-              isWrapBuffer ? "text-amber-500 dark:text-amber-400" : "text-fuchsia-600 dark:text-fuchsia-400"
-            }`}
-          >
+          <span className="text-sm font-semibold text-fuchsia-600 dark:text-fuchsia-400">
             {POWERUP_HUD[activePowerupType].icon} {POWERUP_HUD[activePowerupType].label} {powerupSecondsLeft}s
-            {isWrapBuffer ? " — walls back!" : ""}
           </span>
         )}
       </div>
@@ -168,10 +186,6 @@ function GetTheBuggy() {
         @keyframes buggy-invincible-glow {
           0% { filter: hue-rotate(0deg) saturate(1.7) brightness(1.1); }
           100% { filter: hue-rotate(360deg) saturate(1.7) brightness(1.1); }
-        }
-        @keyframes buggy-wrap-buffer-warn {
-          0%, 100% { filter: hue-rotate(0deg) saturate(1.7) brightness(1.1); opacity: 1; }
-          50% { filter: hue-rotate(0deg) saturate(2.4) brightness(1.5); opacity: 0.55; }
         }
         @keyframes buggy-glow-carrot-pulse {
           0%, 100% { filter: sepia(1) saturate(4) hue-rotate(-15deg) brightness(1.1); }
@@ -186,7 +200,6 @@ function GetTheBuggy() {
           50% { filter: sepia(1) saturate(5) hue-rotate(200deg) brightness(1.3); }
         }
         .buggy-invincible { animation: buggy-invincible-glow 0.5s linear infinite; }
-        .buggy-wrap-buffer { animation: buggy-wrap-buffer-warn 0.3s ease-in-out infinite; }
         .buggy-glow-carrot { animation: buggy-glow-carrot-pulse 0.25s ease-in-out infinite; }
         .buggy-glow-mint { animation: buggy-glow-mint-pulse 1.1s ease-in-out infinite; }
         .buggy-glow-magnet { animation: buggy-glow-magnet-pulse 0.6s ease-in-out infinite; }
@@ -196,44 +209,40 @@ function GetTheBuggy() {
         key={restartKey}
         className="relative aspect-square w-full max-w-xl overflow-hidden rounded-xl border border-neutral-200 bg-emerald-50 dark:border-neutral-800 dark:bg-emerald-950/20"
       >
-        {banjo.map((segment, i) => (
-          <div
-            key={i}
-            className="absolute"
-            style={{
-              left: 0,
-              top: 0,
-              width: `${CELL_PERCENT}%`,
-              height: `${CELL_PERCENT}%`,
-              // `translate()` percentages resolve against the element's
-              // own box, and each segment's box is exactly one grid
-              // cell — so translate(100%, 100%) is "one cell over,"
-              // same math as the old left/top percentages. Animating
-              // transform instead of left/top keeps this off the layout
-              // pipeline (compositor-only), which is what actually
-              // makes the slide feel smooth instead of choppy.
-              transform: `translate(${segment.x * 100}%, ${segment.y * 100}%)`,
-              transitionProperty: "transform",
-              transitionDuration: `${moveTransitionMs}ms`,
-              transitionTimingFunction: "linear",
-              willChange: "transform",
-            }}
-          >
-            {/* Padding lives on this 100%-sized inner div, not the percentage-
-                sized outer one — a percentage `width` under 100% combined with
-                percentage `padding` on the same element inflates the box in
-                some browsers, so the two percentages are kept on separate elements. */}
-            <div className="h-full w-full box-border p-[6%]">
-              <Banjo
-                segment={i === 0 ? "head" : "body"}
-                direction={direction}
-                turnDurationMs={moveTransitionMs}
-                activePowerupType={activePowerupType}
-                isWrapBuffer={isWrapBuffer}
-              />
+        <div className={`absolute inset-0 ${glowClassFor(activePowerupType)}`}>
+          {banjo.map((segment, i) => (
+            <div
+              key={i}
+              className="absolute"
+              style={{
+                left: 0,
+                top: 0,
+                width: `${CELL_PERCENT}%`,
+                height: `${CELL_PERCENT}%`,
+                // `translate()` percentages resolve against the element's
+                // own box, and each segment's box is exactly one grid
+                // cell — so translate(100%, 100%) is "one cell over,"
+                // same math as the old left/top percentages. Animating
+                // transform instead of left/top keeps this off the layout
+                // pipeline (compositor-only), which is what actually
+                // makes the slide feel smooth instead of choppy.
+                transform: `translate(${segment.x * 100}%, ${segment.y * 100}%)`,
+                transitionProperty: "transform",
+                transitionDuration: `${moveTransitionMs}ms`,
+                transitionTimingFunction: "linear",
+                willChange: "transform",
+              }}
+            >
+              {/* Padding lives on this 100%-sized inner div, not the percentage-
+                  sized outer one — a percentage `width` under 100% combined with
+                  percentage `padding` on the same element inflates the box in
+                  some browsers, so the two percentages are kept on separate elements. */}
+              <div className="h-full w-full box-border p-[6%]">
+                <Banjo segment={i === 0 ? "head" : "body"} direction={direction} turnDurationMs={moveTransitionMs} />
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
 
         {/* No transition here — the bug teleports to a new cell on each
             catch, it doesn't slide there like Banjo does. */}

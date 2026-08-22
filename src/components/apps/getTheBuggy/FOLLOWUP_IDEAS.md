@@ -9,7 +9,7 @@ Things intentionally left out of v1, plus new ideas. Not commitments — just a 
 - Difficulty settings (grid size, starting speed) or obstacles/walls in the middle of the board.
 - ~~Visual polish~~ — done: eat particle burst (`EatBurst.tsx`), smooth per-tick sliding/turning (CSS transitions keyed to the current tick speed), idle bug wobble + extra sprite detail.
 - ~~Power-ups: Broccoli, Carrot, Mint, Magnet, Mushroom, Golden bug~~ — done: the board has one shared special-item slot (`pickup` in `GameState`) that spawns one of six kinds (`PICKUP_TYPES` in `types.ts`), each with its own sprite, sound, and (where relevant) Banjo glow:
-  - **Broccoli** 🥦 — Mario-star invincibility + wall wrap-around for 15s, wrap cutting off 2s early as a fairness buffer. Rainbow hue-rotate glow.
+  - **Broccoli** 🥦 — Mario-star invincibility + wall wrap-around, both for the full 15s (an earlier 2s wrap-cutoff buffer was tried, then removed). Rainbow hue-rotate glow.
   - **Carrot** 🥕 — fixed fast tick rate (`CARROT_TICK_MS`) for 8s regardless of score, ignoring the normal speedup curve. Orange pulse glow.
   - **Mint** 🌿 — inverse of carrot, widens the tick interval for 8s as a "breather." Green pulse glow.
   - **Magnet** 🧲 — biases the next several bug spawns toward Banjo's head (`randomEmptyCellNear`) for 10s instead of fully random. Indigo pulse glow.

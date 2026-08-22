@@ -6,13 +6,13 @@ import {
   GRID_SIZE,
   MAGNET_DURATION_MS,
   MAGNET_PULL_RADIUS,
+  MAGNET_PULL_SPEED,
   MINT_DURATION_MS,
   MUSHROOM_MIN_LENGTH,
   MUSHROOM_SHRINK_SEGMENTS,
   PICKUP_SPAWN_CHANCE,
   PICKUP_TYPES,
   POWERUP_DURATION_MS,
-  POWERUP_WRAP_BUFFER_MS,
   isOpposite,
   tickIntervalForScore,
   tickIntervalForState,
@@ -26,6 +26,7 @@ import {
 } from "./types";
 import {
   playBarkSound,
+  playCountdownBeepSound,
   playEatSound,
   playGameOverSound,
   playGoldenBugPickupSound,
@@ -88,6 +89,21 @@ function randomEmptyCellNear(occupied: Point[], origin: Point, radius: number): 
   return randomEmptyCell(occupied);
 }
 
+// Moves `from` toward `to` by up to `speed` cells on each axis
+// independently (a taxicab "greedy" step) — magnet's per-tick tug on the
+// current bug. Biasing where the *next* bug spawns alone turned out to be
+// too passive to read as "the magnet is doing something": within a single
+// active window you might not eat enough bugs to see a respawn at all.
+// Dragging the bug that's already on the board is the unambiguous version
+// of the effect — and it has to out-pace Banjo's own one-cell-per-tick
+// speed, or a bug trailing directly behind a Banjo running in a straight
+// line settles into a fixed gap and never actually closes it.
+function stepToward(from: Point, to: Point, speed: number): Point {
+  const dx = Math.sign(to.x - from.x) * Math.min(speed, Math.abs(to.x - from.x));
+  const dy = Math.sign(to.y - from.y) * Math.min(speed, Math.abs(to.y - from.y));
+  return { x: from.x + dx, y: from.y + dy };
+}
+
 function createInitialState(): GameState {
   const startY = Math.floor(GRID_SIZE / 2);
   const startX = Math.floor(GRID_SIZE / 3);
@@ -131,23 +147,50 @@ function nextState(prev: GameState): GameState {
   const direction = prev.pendingDirection ?? prev.direction;
   const rawHead = movePoint(prev.banjo[0], direction);
 
+  // Broccoli grants both for its whole duration — pass through your own
+  // tail, and wrap straight through walls instead of dying on them.
   const isInvincible = prev.activePowerup?.type === "broccoli" && prev.activePowerup.ticksRemaining > 0;
-  const isWrapActive = prev.activePowerup?.type === "broccoli" && prev.activePowerup.wrapTicksRemaining > 0;
 
   const isOutOfBounds = rawHead.x < 0 || rawHead.x >= GRID_SIZE || rawHead.y < 0 || rawHead.y >= GRID_SIZE;
-  if (isOutOfBounds && !isWrapActive) {
+  if (isOutOfBounds && !isInvincible) {
     return { ...prev, status: "gameover" };
   }
   const head: Point = isOutOfBounds
     ? { x: (rawHead.x + GRID_SIZE) % GRID_SIZE, y: (rawHead.y + GRID_SIZE) % GRID_SIZE }
     : rawHead;
 
-  const ateBug = head.x === prev.bug.x && head.y === prev.bug.y;
   const pickupType: PickupType | null =
     prev.pickup !== null && head.x === prev.pickup.position.x && head.y === prev.pickup.position.y
       ? prev.pickup.type
       : null;
   const atePickup = pickupType !== null;
+
+  // Timed powerups: eating one (of the four buff types) starts a fresh
+  // window; otherwise count down whatever's already active. Computed
+  // before `ateBug` below because magnet's pull needs to know this
+  // tick's activePowerup, not last tick's.
+  let activePowerup: ActivePowerup | null;
+  if (isTimedPowerupType(pickupType)) {
+    const type = pickupType;
+    const tickMs = tickIntervalForState(prev.score, { type, ticksRemaining: 0 });
+    activePowerup = { type, ticksRemaining: Math.round(powerupDurationMs(type) / tickMs) };
+  } else if (prev.activePowerup && prev.activePowerup.ticksRemaining > 1) {
+    activePowerup = { ...prev.activePowerup, ticksRemaining: prev.activePowerup.ticksRemaining - 1 };
+  } else {
+    activePowerup = null;
+  }
+  const isMagnetActive = activePowerup?.type === "magnet" && activePowerup.ticksRemaining > 0;
+
+  // Magnet pulls the bug toward this tick's head *before* the catch is
+  // decided, and the catch check below uses that already-pulled position
+  // — not prev.bug. Comparing against prev.bug (a tick-old position) let
+  // the bug and the head advance in lockstep forever without ever
+  // registering as caught, since the check would always be one tick
+  // behind wherever the pull had actually landed. Checking the same-tick
+  // candidate instead means a catch registers the instant the pull
+  // actually lands on the head, however it got there.
+  const pulledBug = isMagnetActive ? stepToward(prev.bug, head, MAGNET_PULL_SPEED) : prev.bug;
+  const ateBug = head.x === pulledBug.x && head.y === pulledBug.y;
 
   // Mushroom is the one pickup that shrinks Banjo instead of growing
   // him — everything else (the regular bug, or any other pickup) grows.
@@ -164,35 +207,12 @@ function nextState(prev: GameState): GameState {
     banjo = banjo.slice(0, Math.max(MUSHROOM_MIN_LENGTH, banjo.length - MUSHROOM_SHRINK_SEGMENTS));
   }
 
-  // Timed powerups: eating one (of the four buff types) starts a fresh
-  // window; otherwise count down whatever's already active.
-  let activePowerup: ActivePowerup | null;
-  if (isTimedPowerupType(pickupType)) {
-    const type = pickupType;
-    const tickMs = tickIntervalForState(prev.score, { type, ticksRemaining: 0, wrapTicksRemaining: 0 });
-    activePowerup = {
-      type,
-      ticksRemaining: Math.round(powerupDurationMs(type) / tickMs),
-      wrapTicksRemaining:
-        type === "broccoli" ? Math.round((POWERUP_DURATION_MS - POWERUP_WRAP_BUFFER_MS) / tickMs) : 0,
-    };
-  } else if (prev.activePowerup && prev.activePowerup.ticksRemaining > 1) {
-    activePowerup = {
-      ...prev.activePowerup,
-      ticksRemaining: prev.activePowerup.ticksRemaining - 1,
-      wrapTicksRemaining: Math.max(0, prev.activePowerup.wrapTicksRemaining - 1),
-    };
-  } else {
-    activePowerup = null;
-  }
-
-  const isMagnetActive = activePowerup?.type === "magnet" && activePowerup.ticksRemaining > 0;
   const bugOccupied = prev.pickup ? [...banjo, prev.pickup.position] : banjo;
   const bug = ateBug
     ? isMagnetActive
       ? randomEmptyCellNear(bugOccupied, head, MAGNET_PULL_RADIUS)
       : randomEmptyCell(bugOccupied)
-    : prev.bug;
+    : pulledBug;
 
   // Golden bug counts down its own on-board lifespan independent of any
   // player buff, and disappears (unclaimed) if it runs out.
@@ -315,6 +335,54 @@ export function useSnakeGame() {
     }
     prevPowerupPickupCountRef.current = gameState.powerupPickupCount;
   }, [gameState.powerupPickupCount, gameState.lastPickupType]);
+
+  // Any timed effect gets a "beep, beep, beep" at 3, 2, 1 seconds left
+  // before it wears off, since a glow (or nothing at all, for golden
+  // bug) is easy to lose track of once the board is moving fast. Ticks
+  // (not wall-clock time) are what actually count down, so this converts
+  // ticksRemaining to a seconds-left estimate using the same tick
+  // interval the scheduler itself uses, and fires once per second value
+  // as it's crossed. Covers broccoli/carrot/mint/magnet — golden bug's
+  // own on-board despawn timer is a separate BoardPickup countdown,
+  // handled below.
+  const lastCountdownBeepSecondRef = useRef<number | null>(null);
+  useEffect(() => {
+    const powerup = gameState.activePowerup;
+    if (gameState.status !== "playing" || !powerup) {
+      lastCountdownBeepSecondRef.current = null;
+      return;
+    }
+    const secondsRemaining = Math.ceil((powerup.ticksRemaining * tickIntervalMs) / 1000);
+    if (
+      secondsRemaining <= 3 &&
+      secondsRemaining >= 1 &&
+      secondsRemaining !== lastCountdownBeepSecondRef.current
+    ) {
+      lastCountdownBeepSecondRef.current = secondsRemaining;
+      playCountdownBeepSound();
+    }
+  }, [gameState.status, gameState.activePowerup, tickIntervalMs]);
+
+  // Golden bug despawns unclaimed on its own timer (BoardPickup.ticksRemaining,
+  // not an ActivePowerup) — same beep, same last-3-seconds trigger, just a
+  // different countdown source.
+  const lastGoldenBugBeepSecondRef = useRef<number | null>(null);
+  useEffect(() => {
+    const pickup = gameState.pickup;
+    if (gameState.status !== "playing" || pickup?.type !== "goldenBug" || pickup.ticksRemaining === null) {
+      lastGoldenBugBeepSecondRef.current = null;
+      return;
+    }
+    const secondsRemaining = Math.ceil((pickup.ticksRemaining * tickIntervalMs) / 1000);
+    if (
+      secondsRemaining <= 3 &&
+      secondsRemaining >= 1 &&
+      secondsRemaining !== lastGoldenBugBeepSecondRef.current
+    ) {
+      lastGoldenBugBeepSecondRef.current = secondsRemaining;
+      playCountdownBeepSound();
+    }
+  }, [gameState.status, gameState.pickup, tickIntervalMs]);
 
   // The music loop is keyed off "is a powerup active right now," not
   // "was one just picked up" — so it naturally restarts on resume and
