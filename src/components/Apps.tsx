@@ -1,4 +1,4 @@
-export type AppId = "signal" | "hivemind" | "buggy";
+export type AppId = "signal" | "hivemind" | "buggy" | "makethebed";
 
 type AppEntry = {
   id: AppId;
@@ -35,6 +35,15 @@ const APPS: AppEntry[] = [
       "A Snake-style game starring my dog Banjo — chase down bugs, grow your tail, and try not to run into a wall (or yourself).",
     status: "live",
     accent: "from-emerald-500 to-lime-500",
+  },
+  {
+    id: "makethebed",
+    name: "Make the Bed",
+    tagline: "Pong x Tetris, starring Lily",
+    description:
+      "A Pong-meets-Tetris mashup starring my dog Lily — move her back and forth to catch beds falling from above and stack them as high as you can.",
+    status: "live",
+    accent: "from-sky-500 to-cyan-500",
   },
 ];
 

@@ -5,8 +5,10 @@ import Resume from "./components/Resume";
 import Apps, { type AppId } from "./components/Apps";
 import About from "./components/About";
 import StudioExample from "./components/instruments/StudioExample";
+import TechnicalDetails from "./components/instruments/TechnicalDetails";
 import HiveMind from "./components/apps/HiveMind";
 import GetTheBuggy from "./components/apps/GetTheBuggy";
+import MakeTheBed from "./components/apps/MakeTheBed";
 
 type Tab = "home" | "resume" | "apps" | "about";
 
@@ -98,15 +100,23 @@ function App() {
   const [tab, setTab] = useState<Tab>(hasJamLink ? "apps" : "home");
   const [activeApp, setActiveApp] = useState<AppId | null>(hasJamLink ? "signal" : null);
   const [collapsed, setCollapsed] = useState(false);
+  // Scoped to the Signal app only — a separate, Tailwind-styled page (as
+  // opposed to the instruments' own neon-skinned panels) covering
+  // architecture/design decisions for an engineer or hiring-manager
+  // audience, plus a link to the public repo. Reset alongside activeApp
+  // so leaving Signal and reopening it always lands back on the studio.
+  const [signalView, setSignalView] = useState<"studio" | "details">("studio");
 
   const openApp = (id: AppId) => {
     setTab("apps");
     setActiveApp(id);
+    setSignalView("studio");
   };
 
   const goToApps = () => {
     setTab("apps");
     setActiveApp(null);
+    setSignalView("studio");
   };
 
   return (
@@ -139,17 +149,35 @@ function App() {
 
         {tab === "apps" && activeApp !== null && (
           <div className="flex min-h-screen flex-col">
-            <button
-              type="button"
-              onClick={() => setActiveApp(null)}
-              className="flex items-center gap-1.5 px-6 py-3 text-sm font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-            >
-              ← Back to Apps
-            </button>
+            <div className="flex items-center justify-between px-6 py-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveApp(null);
+                  setSignalView("studio");
+                }}
+                className="flex items-center gap-1.5 text-sm font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
+              >
+                ← Back to Apps
+              </button>
+              {activeApp === "signal" && signalView === "studio" && (
+                <button
+                  type="button"
+                  onClick={() => setSignalView("details")}
+                  className="flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
+                >
+                  Technical details →
+                </button>
+              )}
+            </div>
             <div className="flex-1">
-              {activeApp === "signal" && <StudioExample />}
+              {activeApp === "signal" && signalView === "studio" && <StudioExample />}
+              {activeApp === "signal" && signalView === "details" && (
+                <TechnicalDetails onBack={() => setSignalView("studio")} />
+              )}
               {activeApp === "hivemind" && <HiveMind />}
               {activeApp === "buggy" && <GetTheBuggy />}
+              {activeApp === "makethebed" && <MakeTheBed />}
             </div>
           </div>
         )}

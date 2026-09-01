@@ -19,7 +19,7 @@ function Sidebar<T extends string>({
 }: SidebarProps<T>) {
   return (
     <nav
-      className={`flex h-screen flex-col border-r border-neutral-200 bg-white transition-[width] duration-200 dark:border-neutral-800 dark:bg-neutral-950 ${
+      className={`flex h-screen flex-col border-r border-neutral-200 bg-white transition-[width] duration-200 print:hidden dark:border-neutral-800 dark:bg-neutral-950 ${
         collapsed ? "w-16" : "w-56"
       }`}
     >
