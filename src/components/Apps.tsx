@@ -15,7 +15,7 @@ const APPS: AppEntry[] = [
     name: "Signal",
     tagline: "Synth · Drum Machine · Bassline",
     description:
-      "A Web Audio synth, drum machine, and bassline sequencer built from scratch with React, TypeScript, and the raw Web Audio API — no samples, no audio libraries.",
+      "A Web Audio synth, drum machine, and bassline sequencer built from scratch with React, TypeScript, and the raw Web Audio API. No samples, no audio libraries.",
     status: "live",
     accent: "from-orange-500 to-amber-500",
   },
@@ -23,7 +23,7 @@ const APPS: AppEntry[] = [
     id: "hivemind",
     name: "HiveMind",
     tagline: "Coming soon",
-    description: "A new app — details to come.",
+    description: "A new app to help beekeepers manage their hives. Coming soon.",
     status: "under-construction",
     accent: "from-indigo-500 to-purple-500",
   },
@@ -32,7 +32,7 @@ const APPS: AppEntry[] = [
     name: "Get the Buggy",
     tagline: "Snake, starring Banjo",
     description:
-      "A Snake-style game starring my dog Banjo — chase down bugs, grow your tail, and try not to run into a wall (or yourself).",
+      "A Snake-style game starring my dog Banjo. Chase down bugs, grow your tail, and try not to run into a wall (or yourself).",
     status: "live",
     accent: "from-emerald-500 to-lime-500",
   },
@@ -42,7 +42,7 @@ const APPS: AppEntry[] = [
     tagline: "Pong x Tetris, starring Lily",
     description:
       "A Pong-meets-Tetris mashup starring my dog Lily — move her back and forth to catch beds falling from above and stack them as high as you can.",
-    status: "live",
+    status: "under-construction",
     accent: "from-sky-500 to-cyan-500",
   },
 ];

@@ -5,13 +5,13 @@ type Stat = { value: string; label: string };
 
 const STATS: Stat[] = [
   { value: "10+", label: "Years in software engineering" },
-  { value: "5", label: "Years leading engineering teams" },
-  { value: "10", label: "Engineers led, scaled from 3" },
-  { value: "$M+", label: "Unlocked in annual loan volume" },
+  { value: "5+", label: "Years leading engineering teams" },
+  { value: "10", label: "Direct reports, scaled from 3" },
+  { value: "$10M+", label: "Unlocked in annual loan volume" },
 ];
 
 const SUMMARY =
-  "Software Engineering Manager with 10+ years of technical experience and 5 years leading " +
+  "Software Engineering Manager with 10+ years of technical experience and 5+ years leading " +
   "high-performing teams in fast-paced environments. Proven track record driving engineering " +
   "velocity, integrating AI-driven operational efficiencies, and navigating cross-functional " +
   "alignment across Product, Architecture, and Executives to scale core platforms and unlock " +
@@ -65,11 +65,10 @@ const EXPERIENCE: Job[] = [
       { title: "Full-Stack Software Engineer", dates: "May 2019 – Sept 2021" },
     ],
     bullets: [
-      "Directed the architecture of a core Credit subsystem update integrating third-party APIs for soft pulls and live debt monitoring, used by ~100% of loans and unlocking millions in annual loan volume.",
-      "Scaled and manage a 10-engineer team within a 40+ person organization, growing the team from 3 while securing 5 promotions and partnering cross-functionally with Product and Architecture.",
-      "Slashed fee reconciliation time from one day to minutes, eliminating 90%+ of manual intervention for Closing Coordinators and accelerating loan time-to-close.",
-      "Diagnosed and eliminated severe SQS queue latency and production downtime by deploying an OpenTelemetry framework paired with an AI-powered diagnostic engine for automated root-cause analysis.",
-      "Maintained hands-on technical leadership across enterprise Java, Kotlin, MyBatis, MySQL, and JavaScript systems through architecture, code review, and production support.",
+      "Scaled and manage a 10-engineer team within a 40+ person organization, more than doubling engineering output through AI-driven operational efficiencies.",
+      "Directed the architecture of core Credit subsystem upgrades, integrating third-party APIs for soft pulls, live debt monitoring, and derogatory credit event tracking, unlocking tens of millions in annual loan volume.",
+      "Slashed Closing Disclosure fee reconciliation time from days to hours, eliminating roughly 90%+ of manual intervention for Closing Coordinators and accelerating loan time-to-close.",
+      "Designed and engineered an improved observability framework through OpenTelemetry, paired with an AI-powered diagnostic engine for automated root-cause analysis.",
     ],
   },
   {
@@ -77,9 +76,9 @@ const EXPERIENCE: Job[] = [
     location: "Albany, NY",
     roles: [{ title: "Associate Software Engineer", dates: "Dec 2017 – May 2019" }],
     bullets: [
-      "Built and maintained interconnected backend systems for OrderStream, the company's flagship dropshipping product.",
+      "Built and maintained interconnected backend systems for OrderStream, the company's flagship dropshipping / order fulfillment service.",
       "Provided rotating, 24/7 on-call support for OrderStream's backend systems, resolving incidents and ensuring high availability.",
-      "Introduced a CI/CD pipeline for OrderStream's backend systems, automating builds and reducing deployment time from hours to minutes.",
+      "Introduced a CI/CD pipeline for OrderStream, automating builds and reducing deployment time from hours to minutes.",
     ],
   },
   {
@@ -640,14 +639,12 @@ function Resume({ onOpenSignal }: ResumeProps) {
       </section>
 
       <section className="relative mb-10 overflow-hidden rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800 sm:p-8">
-        {/* The same NightSky backdrop as the hero, just dialed way down —
-            so the same sky quietly continues behind the timeline instead
-            of living only in one isolated banner at the top of the page. */}
-        <div className="opacity-[0.18]">
-          <NightSky />
-        </div>
         <div className="relative">
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500">
+          {/* mb-8, not the mb-4 other section headers use: each entry's
+              highlight backdrop (see TimelineEntry) extends -top-4 above
+              itself, so with only mb-4 here the first entry's tint/ring box
+              would reach all the way up to touch this header's text. */}
+          <h2 className="mb-8 text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500">
             Experience
           </h2>
           <TimelineRail>

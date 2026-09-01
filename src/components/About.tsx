@@ -9,7 +9,7 @@ const HOBBIES: Hobby[] = [
   {
     emoji: "🐔",
     title: "Chickens",
-    description: "I keep a large backyard flock — coop-building, feed runs, and a steady egg surplus.",
+    description: "I keep a large backyard flock. Coop-building, free-ranging, and a steady egg surplus.",
     accent: "from-amber-500 to-orange-500",
   },
   {
@@ -21,7 +21,7 @@ const HOBBIES: Hobby[] = [
   {
     emoji: "🐝",
     title: "Beekeeping",
-    description: "A few hives of honeybees — equal parts hobby and slow-motion science experiment.",
+    description: "A few hives of honeybees. Equal parts hobby and slow-motion science experiment.",
     accent: "from-yellow-500 to-amber-600",
   },
   {
