@@ -1196,8 +1196,9 @@ export default function Synth({
       playDemo: () => {
         const ctx = ensureAudioGraph();
         if (ctx.state === "suspended") ctx.resume();
-        const demoPatch = FACTORY_PRESETS.find((p) => p?.name === "Pluck Arp")?.patch ?? INIT_PATCH;
-        applyPatch(demoPatch);
+        const demoIndex = FACTORY_PRESETS.findIndex((p) => p?.name === "Pluck Arp");
+        applyPatch(demoIndex >= 0 ? FACTORY_PRESETS[demoIndex]!.patch : INIT_PATCH);
+        setActivePatchIndex(demoIndex >= 0 ? demoIndex : null);
         setMode("seq");
       },
       stop: () => {

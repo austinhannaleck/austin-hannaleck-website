@@ -26,6 +26,18 @@ import { TutorialOverlay, type TutorialStep } from "./Tutorial";
  * envelope automation needed. It's what gives the low end weight the
  * filtered oscillator alone can't really deliver.
  *
+ * Detune oscillator + saturation: two things a real 303 doesn't have,
+ * added to push the tone away from thin acid squelch toward a thicker
+ * 80s synth-bass sound. `detuneOsc` is a second copy of the main
+ * oscillator a few cents sharp, summed into the filter alongside it —
+ * the slight beating between the two is what makes the tone sound
+ * "fat" instead of a single thin line. `saturator` is a WaveShaper
+ * (soft tanh curve) sitting after the amp envelope, adding the mild
+ * harmonic saturation that makes analog gear sound warm/thick rather
+ * than clean. Default Resonance/Env Mod are also tuned much lower than
+ * a real 303 (which wants to self-oscillate) — cranking them back up
+ * still gets classic acid squelch if that's what a patch wants.
+ *
  * Standalone by design, same conventions as DrumMachine.tsx: its own
  * AudioContext, a permanent recording tap exposed via `getOutputStream()`,
  * and `playDemo()`/`stop()` for StudioExample's hands-free demo. See
@@ -87,6 +99,19 @@ const DEFAULT_PATTERN: BassStep[] = [
   { note: "A#", accent: false, slide: false },
 ];
 
+// Fixed-amount soft-clip curve for `saturator` (see top-of-file comment) —
+// a gentle tanh drive that rounds off peaks for analog-style warmth
+// without turning into audible distortion at normal playing levels.
+const SATURATION_DRIVE = 2.2;
+function makeSaturationCurve(drive: number, samples = 256) {
+  const curve = new Float32Array(samples);
+  for (let i = 0; i < samples; i++) {
+    const x = (i / (samples - 1)) * 2 - 1;
+    curve[i] = Math.tanh(x * drive);
+  }
+  return curve;
+}
+
 function rampPitch(param: AudioParam, time: number, freq: number, slideIn: boolean, stepSeconds: number) {
   param.cancelScheduledValues(time);
   if (slideIn) {
@@ -99,6 +124,7 @@ function rampPitch(param: AudioParam, time: number, freq: number, slideIn: boole
 
 function triggerNote(
   osc: OscillatorNode,
+  detuneOsc: OscillatorNode,
   subOsc: OscillatorNode,
   filter: BiquadFilterNode,
   ampGain: GainNode,
@@ -112,9 +138,12 @@ function triggerNote(
   const { cutoff, envMod, decay, accentAmount, volume } = params;
 
   // Pitch — slide glides smoothly from wherever the oscillator currently
-  // sits; a fresh note jumps immediately (no portamento). The sub
-  // oscillator tracks exactly one octave below the main one.
+  // sits; a fresh note jumps immediately (no portamento). The detune
+  // oscillator tracks the same pitch as the main one (its fixed `.detune`
+  // cents offset does the thickening); the sub oscillator tracks exactly
+  // one octave below.
   rampPitch(osc.frequency, time, freq, slideIn, stepSeconds);
+  rampPitch(detuneOsc.frequency, time, freq, slideIn, stepSeconds);
   rampPitch(subOsc.frequency, time, freq / 2, slideIn, stepSeconds);
 
   // Amplitude — accent boosts peak level. A slide-in note skips the hard
@@ -130,8 +159,11 @@ function triggerNote(
   ampGain.gain.exponentialRampToValueAtTime(0.0001, time + decay + (accented ? 0.04 : 0));
 
   // Filter envelope — fast sweep up, decaying back to the Cutoff knob's
-  // resting value. This sweep is the "squelch."
-  const sweepPeak = Math.min(9000, cutoff + envMod * 5000 * (accented ? 1 + accentAmount : 1));
+  // resting value. Capped much lower and scaled down vs. a real 303: a
+  // sweep all the way into the treble is exactly what reads as "squelch/
+  // fart" — keeping the peak closer to the resting cutoff gives a
+  // rounder, thicker envelope "thump" instead.
+  const sweepPeak = Math.min(4000, cutoff + envMod * 2200 * (accented ? 1 + accentAmount : 1));
   filter.frequency.cancelScheduledValues(time);
   filter.frequency.setValueAtTime(sweepPeak, time);
   filter.frequency.exponentialRampToValueAtTime(Math.max(60, cutoff), time + decay);
@@ -322,12 +354,16 @@ export default function Bassline({
   const [waveform, setWaveform] = useState<OscillatorType>("sawtooth");
   const [octaveShift, setOctaveShift] = useState(0);
   const [volume, setVolume] = useState(0.7);
-  const [cutoff, setCutoff] = useState(500);
-  const [resonance, setResonance] = useState(14);
-  const [envMod, setEnvMod] = useState(0.6);
-  const [decay, setDecay] = useState(0.16);
+  // Tuned for a deep/thick 80s synth-bass tone rather than 303 acid
+  // squelch — low resonance and env mod so the filter sweep stays a
+  // rounded "thump" instead of a self-oscillating squeal, darker resting
+  // cutoff, longer decay, and more sub weight to carry the low end.
+  const [cutoff, setCutoff] = useState(380);
+  const [resonance, setResonance] = useState(5);
+  const [envMod, setEnvMod] = useState(0.3);
+  const [decay, setDecay] = useState(0.22);
   const [accentAmount, setAccentAmount] = useState(0.6);
-  const [subLevel, setSubLevel] = useState(0.3);
+  const [subLevel, setSubLevel] = useState(0.45);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const [tutorialStep, setTutorialStep] = useState<number | null>(null);
@@ -338,10 +374,12 @@ export default function Bassline({
 
   const ctxRef = useRef<AudioContext | null>(null);
   const oscRef = useRef<OscillatorNode | null>(null);
+  const detuneOscRef = useRef<OscillatorNode | null>(null);
   const subOscRef = useRef<OscillatorNode | null>(null);
   const filterRef = useRef<BiquadFilterNode | null>(null);
   const ampGainRef = useRef<GainNode | null>(null);
   const subGainRef = useRef<GainNode | null>(null);
+  const saturatorRef = useRef<WaveShaperNode | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
   const recordStreamDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
@@ -397,7 +435,20 @@ export default function Bassline({
     const masterGain = ctx.createGain();
     masterGain.gain.value = volumeRef.current;
 
+    // Detune oscillator — a second copy of the main osc a few cents sharp
+    // (fixed for the session, never automated), summed into the filter
+    // alongside it. The slight beating between the two thickens the tone
+    // (analog-unison style) — see top-of-file comment.
+    const detuneOsc = ctx.createOscillator();
+    detuneOsc.type = waveformRef.current;
+    detuneOsc.frequency.value = noteToFreq("C", octaveShiftRef.current);
+    detuneOsc.detune.value = 9;
+    const detuneGain = ctx.createGain();
+    detuneGain.gain.value = 0.75;
+
     osc.connect(filter);
+    detuneOsc.connect(detuneGain);
+    detuneGain.connect(filter);
     filter.connect(ampGain);
 
     // Sub oscillator — a plain sine one octave below the main osc, mixed
@@ -414,9 +465,18 @@ export default function Bassline({
     subGain.connect(ampGain);
     subOsc.start();
 
-    ampGain.connect(masterGain);
+    // Saturator — gentle tanh soft-clip after the amp envelope, for the
+    // mild analog-style warmth/thickness a clean biquad chain doesn't
+    // have on its own (see top-of-file comment).
+    const saturator = ctx.createWaveShaper();
+    saturator.curve = makeSaturationCurve(SATURATION_DRIVE);
+    saturator.oversample = "4x";
+
+    ampGain.connect(saturator);
+    saturator.connect(masterGain);
     masterGain.connect(ctx.destination);
     osc.start();
+    detuneOsc.start();
 
     // Permanent recording tap (see DrumMachine.tsx for the fuller
     // rationale) — connected once, never torn down.
@@ -425,10 +485,12 @@ export default function Bassline({
 
     ctxRef.current = ctx;
     oscRef.current = osc;
+    detuneOscRef.current = detuneOsc;
     subOscRef.current = subOsc;
     filterRef.current = filter;
     ampGainRef.current = ampGain;
     subGainRef.current = subGain;
+    saturatorRef.current = saturator;
     masterGainRef.current = masterGain;
     recordStreamDestRef.current = recordDest;
     return ctx;
@@ -473,12 +535,12 @@ export default function Bassline({
         setWaveform(state?.waveform === "square" ? "square" : "sawtooth");
         setOctaveShift(Math.round(clampNum(state?.octaveShift, -2, 1, 0)));
         setVolume(clampNum(state?.volume, 0, 1, 0.7));
-        setCutoff(clampNum(state?.cutoff, 100, 4000, 500));
-        setResonance(clampNum(state?.resonance, 1, 24, 14));
-        setEnvMod(clampNum(state?.envMod, 0, 1, 0.6));
-        setDecay(clampNum(state?.decay, 0.05, 0.6, 0.16));
+        setCutoff(clampNum(state?.cutoff, 100, 4000, 380));
+        setResonance(clampNum(state?.resonance, 1, 24, 5));
+        setEnvMod(clampNum(state?.envMod, 0, 1, 0.3));
+        setDecay(clampNum(state?.decay, 0.05, 0.6, 0.22));
         setAccentAmount(clampNum(state?.accentAmount, 0, 1, 0.6));
-        setSubLevel(clampNum(state?.subLevel, 0, 1, 0.3));
+        setSubLevel(clampNum(state?.subLevel, 0, 1, 0.45));
         if (externalBpm === undefined) setInternalBpm(Math.round(clampNum(state?.bpm, 60, 200, 120)));
       },
       play: () => {
@@ -498,6 +560,7 @@ export default function Bassline({
   // the per-note envelope automation already scheduled on the same params.
   useEffect(() => {
     if (oscRef.current) oscRef.current.type = waveform;
+    if (detuneOscRef.current) detuneOscRef.current.type = waveform;
   }, [waveform]);
   useEffect(() => {
     if (filterRef.current) filterRef.current.Q.value = resonance;
@@ -535,6 +598,7 @@ export default function Bassline({
 
     const tick = () => {
       const osc = oscRef.current!;
+      const detuneOsc = detuneOscRef.current!;
       const subOsc = subOscRef.current!;
       const filter = filterRef.current!;
       const ampGain = ampGainRef.current!;
@@ -547,7 +611,7 @@ export default function Bassline({
         const prevStep = steps[prevIdx];
         const slideIn = prevStep.note !== null && prevStep.slide;
         const freq = noteToFreq(current.note, octaveShiftRef.current);
-        triggerNote(osc, subOsc, filter, ampGain, time, freq, current.accent, slideIn, stepMs / 1000, {
+        triggerNote(osc, detuneOsc, subOsc, filter, ampGain, time, freq, current.accent, slideIn, stepMs / 1000, {
           cutoff: cutoffRef.current,
           envMod: envModRef.current,
           decay: decayRef.current,

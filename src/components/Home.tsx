@@ -1,3 +1,5 @@
+import NightSky from "./NightSky";
+
 function IconMail() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
@@ -43,30 +45,31 @@ type HomeProps = {
 function Home({ onOpenResume, onOpenApps, onOpenAbout }: HomeProps) {
   return (
     <main className="mx-auto max-w-4xl px-6 py-16 sm:px-10">
-      <header className="mb-10">
-        <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
-          Portfolio
-        </p>
-        <h1 className="mt-2 text-4xl font-semibold sm:text-5xl">Austin Hannaleck</h1>
-        <p className="mt-2 text-lg text-neutral-500 dark:text-neutral-400">
-          Software Engineering Manager — Backend &amp; Distributed Systems
-        </p>
+      <header className="relative mb-10 overflow-hidden rounded-2xl px-6 py-10 shadow-xl shadow-indigo-950/20 ring-1 ring-white/10 sm:px-10 sm:py-14">
+        <NightSky />
+        <div className="relative">
+          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-300">Portfolio</p>
+          <h1 className="mt-2 text-4xl font-semibold text-white sm:text-5xl">Austin Hannaleck</h1>
+          <p className="mt-2 text-lg text-neutral-300">
+            Software Engineering Manager — Backend &amp; Distributed Systems
+          </p>
 
-        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-neutral-500 dark:text-neutral-400">
-          <a
-            href="mailto:ahannaleck1@gmail.com"
-            className="inline-flex items-center gap-1.5 hover:text-neutral-900 dark:hover:text-neutral-100"
-          >
-            <IconMail /> ahannaleck1@gmail.com
-          </a>
-          <a
-            href="https://www.linkedin.com/in/austin-hannaleck-0b4aa7b2"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 hover:text-neutral-900 dark:hover:text-neutral-100"
-          >
-            <IconLinkedIn /> LinkedIn
-          </a>
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-neutral-300">
+            <a
+              href="mailto:ahannaleck1@gmail.com"
+              className="inline-flex items-center gap-1.5 hover:text-white"
+            >
+              <IconMail /> ahannaleck1@gmail.com
+            </a>
+            <a
+              href="https://www.linkedin.com/in/austin-hannaleck-0b4aa7b2"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 hover:text-white"
+            >
+              <IconLinkedIn /> LinkedIn
+            </a>
+          </div>
         </div>
       </header>
 
