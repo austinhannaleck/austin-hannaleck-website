@@ -251,34 +251,51 @@ function StatTile({ stat }: { stat: Stat }) {
       <style>{`
         /* A light highlight sweeps across the settled number every few
            seconds — background-clip: text lets the gradient itself paint
-           the glyphs. The base color is hardcoded to indigo-600/indigo-400
-           (the same swatches the text-indigo-* classes above use) rather
-           than currentColor: this rule also sets color: transparent for
+           the glyphs, so only the ink shimmers, not the surrounding
+           whitespace (a separate mix-blend-mode overlay was tried here
+           briefly; it lit up the whole box, not just the digits, so it's
+           gone). The base color is hardcoded to indigo-600/indigo-400 (the
+           same swatches the text-indigo-* classes above use) rather than
+           currentColor: this rule also sets color: transparent for
            browsers that don't support background-clip: text, and
            currentColor would have resolved against THAT (transparent),
            silently erasing the whole gradient instead of just hiding the
-           fallback. */
+           fallback.
+           Timing is linear, not ease-in-out: with only two keyframes and
+           infinite repetition (no alternate direction), every loop has to
+           snap instantly back to its starting position — ease-in-out decelerates to
+           near-a-standstill right before that snap, so the sweep reads as
+           "slowly grind to a halt, then teleport," which is what looked
+           jumpy. Linear keeps constant speed right up to the reset, so it
+           reads as one continuous sweep instead of a stall-and-jump. */
         .stat-shimmer {
-          background-image: linear-gradient(100deg, #4f46e5 35%, rgba(255, 255, 255, 0.9) 50%, #4f46e5 65%);
-          background-size: 250% 100%;
-          background-position: -100% 0;
+          background-image: linear-gradient(100deg, #4f46e5 30%, rgba(255, 255, 255, 0.9) 50%, #4f46e5 70%);
+          background-size: 200% 100%;
+          background-position: 200% 0;
           -webkit-background-clip: text;
           background-clip: text;
           -webkit-text-fill-color: transparent;
           color: transparent;
-          animation: stat-shimmer-sweep 4.5s ease-in-out infinite;
+          animation: stat-shimmer-sweep 3s linear infinite;
         }
         @media (prefers-color-scheme: dark) {
           .stat-shimmer {
-            background-image: linear-gradient(100deg, #818cf8 35%, rgba(255, 255, 255, 0.9) 50%, #818cf8 65%);
+            background-image: linear-gradient(100deg, #818cf8 30%, rgba(255, 255, 255, 0.9) 50%, #818cf8 70%);
           }
         }
+        /* The travel distance (keyframe delta) must equal the tile width
+           (background-size) — a 1:1 ratio — so the repeating gradient
+           wraps back on itself in phase. The previous 250%-wide tile with
+           a 300% travel (a 1.2 ratio) meant the pattern didn't repeat on a
+           whole tile boundary: two highlight bands swept past per cycle
+           instead of one, and the loop-reset point clipped one of them
+           mid-sweep, which read as "every other pass is faster." */
         @keyframes stat-shimmer-sweep {
           0% { background-position: 200% 0; }
-          100% { background-position: -100% 0; }
+          100% { background-position: 0% 0; }
         }
         @media (prefers-reduced-motion: reduce) {
-          .stat-shimmer { animation: none; background-position: -100% 0; }
+          .stat-shimmer { animation: none; background-position: 0% 0; }
         }
       `}</style>
     </div>
