@@ -53,7 +53,7 @@ function ProfileHeader({ eyebrow, actions }: ProfileHeaderProps) {
             Austin Hannaleck
           </h1>
           <p className="mt-2 text-lg text-neutral-300 print:text-neutral-600">
-            Software Engineering Manager — Backend &amp; Distributed Systems
+            Software Engineering Professional
           </p>
 
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-neutral-300 print:text-neutral-600">
