@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GRID_SIZE, type PickupType, type PowerupType } from "./getTheBuggy/types";
 import Banjo from "./getTheBuggy/Banjo";
 import Broccoli from "./getTheBuggy/Broccoli";
@@ -71,8 +71,13 @@ function PickupSprite({ type }: { type: PickupType }) {
   }
 }
 
+// Below this drag distance a touch reads as a tap (pause/resume) rather
+// than a swipe (steer) — small enough that a real swipe always clears it,
+// large enough that a slightly-shaky tap doesn't get misread as a swipe.
+const SWIPE_THRESHOLD_PX = 24;
+
 function GetTheBuggy() {
-  const { gameState, togglePause, restart, tickIntervalMs, restartKey, hasStarted } = useSnakeGame();
+  const { gameState, setDirection, togglePause, restart, tickIntervalMs, restartKey, hasStarted } = useSnakeGame();
   const { banjo, bug, pickup, direction, score, status, activePowerup } = gameState;
 
   const activePowerupType = activePowerup?.type ?? null;
@@ -155,6 +160,42 @@ function GetTheBuggy() {
     setPendingScore(null);
   }
 
+  // Touch steering for the board: a drag past SWIPE_THRESHOLD_PX picks
+  // whichever axis moved further and steers that way (one swipe, one
+  // turn — same as one keypress); anything shorter reads as a tap and
+  // just pauses/resumes, standing in for the Space key on a phone with
+  // no keyboard.
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  function handleBoardTouchStart(e: React.TouchEvent) {
+    // Only tracked while actually playing — while paused/game over, the
+    // overlay's own Start/Resume/Restart buttons sit on top of the board
+    // and their taps bubble up here too; recording no start point means
+    // handleBoardTouchEnd's `if (!start) return` below no-ops for them
+    // instead of firing an extra togglePause on top of the button's own.
+    if (status !== "playing") return;
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  }
+
+  function handleBoardTouchEnd(e: React.TouchEvent) {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start) return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_THRESHOLD_PX) {
+      togglePause();
+      return;
+    }
+    if (Math.abs(dx) > Math.abs(dy)) {
+      setDirection(dx > 0 ? "right" : "left");
+    } else {
+      setDirection(dy > 0 ? "down" : "up");
+    }
+  }
+
   return (
     <main className="mx-auto flex max-w-2xl flex-col items-center px-6 py-12 sm:px-10">
       <header className="mb-6 text-center">
@@ -162,11 +203,11 @@ function GetTheBuggy() {
           Get the Buggy
         </p>
         <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">Banjo's on the hunt</h1>
-        <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
+        <p className="mt-2 hidden text-sm text-neutral-500 dark:text-neutral-400 sm:block">
           Arrow keys or WASD to move · Space to pause · R to restart
         </p>
-        <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500 sm:hidden">
-          Best played on desktop with a keyboard.
+        <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400 sm:hidden">
+          Swipe the board to move · Tap to pause
         </p>
       </header>
 
@@ -207,7 +248,9 @@ function GetTheBuggy() {
 
       <div
         key={restartKey}
-        className="relative aspect-square w-full max-w-xl overflow-hidden rounded-xl border border-neutral-200 bg-emerald-50 dark:border-neutral-800 dark:bg-emerald-950/20"
+        onTouchStart={handleBoardTouchStart}
+        onTouchEnd={handleBoardTouchEnd}
+        className="relative aspect-square w-full max-w-xl touch-none overflow-hidden rounded-xl border border-neutral-200 bg-emerald-50 dark:border-neutral-800 dark:bg-emerald-950/20"
       >
         <div className={`absolute inset-0 ${glowClassFor(activePowerupType)}`}>
           {banjo.map((segment, i) => (

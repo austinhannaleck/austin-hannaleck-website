@@ -132,7 +132,7 @@ function App() {
         onToggleCollapsed={() => setCollapsed((c) => !c)}
       />
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
         {tab === "home" && (
           <Home
             onOpenResume={() => setTab("resume")}
