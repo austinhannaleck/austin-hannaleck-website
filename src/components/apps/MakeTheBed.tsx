@@ -47,7 +47,7 @@ function MakeTheBed() {
     <main className="mx-auto flex max-w-2xl flex-col items-center px-6 py-12 sm:px-10">
       <header className="mb-6 text-center">
         <p className="text-xs font-semibold uppercase tracking-widest text-sky-600 dark:text-sky-400">
-          Make the Bed
+          Make the Bed - Under Construction
         </p>
         <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">Lily's tower of beds</h1>
         <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
