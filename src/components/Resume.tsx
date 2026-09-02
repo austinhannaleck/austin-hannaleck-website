@@ -21,33 +21,28 @@ type SkillGroup = { category: string; emoji: string; accent: string; items: stri
 
 const SKILLS: SkillGroup[] = [
   {
-    category: "Languages",
+    category: "Enterprise Architecture & Full-Stack Development",
     emoji: "💻",
     accent: "from-indigo-500 to-purple-500",
-    items: ["Java", "Kotlin", "JavaScript", "C++"],
+    items: ["Java", "React", "Spring Boot", "RESTful Microservices", "Distributed Systems"],
   },
   {
-    category: "Data & Storage",
-    emoji: "🗄️",
-    accent: "from-emerald-500 to-lime-500",
-    items: ["MySQL", "MyBatis", "Relational schema design", "Query performance tuning"],
-  },
-  {
-    category: "Cloud & Infrastructure",
+    category: "Cloud & Infrastructure Management",
     emoji: "☁️",
     accent: "from-sky-500 to-cyan-500",
-    items: [
-      "AWS (SQS, API Gateway, CloudWatch)",
-      "Distributed / multi-service architecture",
-      "OpenTelemetry",
-      "Production observability & incident response",
-    ],
+    items: ["AWS", "Docker", "OpenTelemetry", "CI/CD Pipelines"],
   },
   {
-    category: "AI-Assisted Development",
+    category: "Leadership",
+    emoji: "🧭",
+    accent: "from-emerald-500 to-lime-500",
+    items: ["Agile/Scrum", "Professional Development", "Team Scaling", "Hiring"],
+  },
+  {
+    category: "AI-First Workflows",
     emoji: "🤖",
     accent: "from-amber-500 to-orange-500",
-    items: ["AI-powered diagnostic tooling", "AI-assisted dev workflow"],
+    items: ["AI-driven operational efficiencies", "AI-powered diagnostic tooling"],
   },
 ];
 
@@ -60,11 +55,11 @@ const EXPERIENCE: Job[] = [
     location: "Remote",
     roles: [
       { title: "Manager, Software Engineering", dates: "Sept 2021 – Present" },
-      { title: "Senior Software Engineer", dates: "Sept 2020 – Sept 2021" },
-      { title: "Full-Stack Software Engineer", dates: "May 2019 – Sept 2021" },
+      { title: "Senior Software Engineer", dates: "June 2021 – Sept 2021" },
+      { title: "Full-Stack Software Engineer", dates: "May 2019 – June 2021" },
     ],
     bullets: [
-      "Scaled and manage a 10-engineer team within a 40+ person organization, more than doubling engineering output through AI-driven operational efficiencies.",
+      "Scaled and managed a 10-engineer team within a 40+ person organization, more than doubling engineering output through AI-driven operational efficiencies.",
       "Directed the architecture of core Credit subsystem upgrades, integrating third-party APIs for soft pulls, live debt monitoring, and derogatory credit event tracking, unlocking tens of millions in annual loan volume.",
       "Slashed Closing Disclosure fee reconciliation time from days to hours, eliminating roughly 90%+ of manual intervention for Closing Coordinators and accelerating loan time-to-close.",
       "Designed and engineered an improved observability framework through OpenTelemetry, paired with an AI-powered diagnostic engine for automated root-cause analysis.",
@@ -81,7 +76,7 @@ const EXPERIENCE: Job[] = [
     ],
   },
   {
-    company: "General Dynamics Mission Systems",
+    company: "General Dynamics",
     location: "Pittsfield, MA",
     roles: [{ title: "Software Engineer I", dates: "May 2015 – Dec 2017" }],
     bullets: [
@@ -512,13 +507,13 @@ function Resume({ onOpenSignal }: ResumeProps) {
       <ProfileHeader
         eyebrow="Resume"
         actions={
-          <button
-            type="button"
-            onClick={() => window.print()}
+          <a
+            href="/resume.pdf"
+            download="Austin_Hannaleck_Resume.pdf"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white ring-1 ring-white/20 transition-colors hover:bg-white/20 print:hidden"
           >
             <IconDownload /> Download PDF
-          </button>
+          </a>
         }
       />
 
