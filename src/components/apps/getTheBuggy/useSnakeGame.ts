@@ -420,5 +420,5 @@ export function useSnakeGame() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [setDirection, togglePause, restart]);
 
-  return { gameState, togglePause, restart, tickIntervalMs, restartKey, hasStarted };
+  return { gameState, setDirection, togglePause, restart, tickIntervalMs, restartKey, hasStarted };
 }
