@@ -15,35 +15,26 @@ const APPS: AppEntry[] = [
     name: "Signal",
     tagline: "Synth · Drum Machine · Bassline",
     description:
-      "A Web Audio synth, drum machine, and bassline sequencer built from scratch with React, TypeScript, and the raw Web Audio API — no samples, no audio libraries.",
+      "A Web Audio synth, drum machine, and bassline sequencer built from scratch with React, TypeScript, and the raw Web Audio API. No samples, no audio libraries.",
     status: "live",
     accent: "from-orange-500 to-amber-500",
-  },
-  {
-    id: "hivemind",
-    name: "HiveMind",
-    tagline: "Coming soon",
-    description: "A new app — details to come.",
-    status: "under-construction",
-    accent: "from-indigo-500 to-purple-500",
   },
   {
     id: "buggy",
     name: "Get the Buggy",
     tagline: "Snake, starring Banjo",
     description:
-      "A Snake-style game starring my dog Banjo — chase down bugs, grow your tail, and try not to run into a wall (or yourself).",
+      "A Snake-style game starring my dog Banjo. Chase down bugs, grow your tail, and try not to run into a wall (or yourself).",
     status: "live",
     accent: "from-emerald-500 to-lime-500",
   },
   {
-    id: "makethebed",
-    name: "Make the Bed",
-    tagline: "Pong x Tetris, starring Lily",
-    description:
-      "A Pong-meets-Tetris mashup starring my dog Lily — move her back and forth to catch beds falling from above and stack them as high as you can.",
-    status: "live",
-    accent: "from-sky-500 to-cyan-500",
+    id: "hivemind",
+    name: "HiveMind",
+    tagline: "Coming soon",
+    description: "A new app to help beekeepers manage their hives. Coming soon.",
+    status: "under-construction",
+    accent: "from-indigo-500 to-purple-500",
   },
 ];
 
@@ -58,7 +49,7 @@ function Apps({ onOpenApp }: AppsProps) {
         <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Apps</p>
         <h1 className="mt-2 text-4xl font-semibold sm:text-5xl">Things I've built</h1>
         <p className="mt-2 text-lg text-neutral-500 dark:text-neutral-400">
-          Small apps and experiments, built right here on this site.
+          Small apps and experiments, some of them built right here on this site.
         </p>
       </header>
 

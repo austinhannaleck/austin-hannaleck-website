@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import NightSky from "./NightSky";
+import ProfileHeader from "./ProfileHeader";
 
 type Stat = { value: string; label: string };
 
 const STATS: Stat[] = [
   { value: "10+", label: "Years in software engineering" },
-  { value: "5", label: "Years leading engineering teams" },
-  { value: "10", label: "Engineers led, scaled from 3" },
-  { value: "$M+", label: "Unlocked in annual loan volume" },
+  { value: "5+", label: "Years leading engineering teams" },
+  { value: "10", label: "Direct reports, scaled from 3" },
 ];
 
 const SUMMARY =
-  "Software Engineering Manager with 10+ years of technical experience and 5 years leading " +
+  "Software Engineering Manager with 10+ years of technical experience and 5+ years leading " +
   "high-performing teams in fast-paced environments. Proven track record driving engineering " +
   "velocity, integrating AI-driven operational efficiencies, and navigating cross-functional " +
   "alignment across Product, Architecture, and Executives to scale core platforms and unlock " +
@@ -65,11 +64,10 @@ const EXPERIENCE: Job[] = [
       { title: "Full-Stack Software Engineer", dates: "May 2019 – Sept 2021" },
     ],
     bullets: [
-      "Directed the architecture of a core Credit subsystem update integrating third-party APIs for soft pulls and live debt monitoring, used by ~100% of loans and unlocking millions in annual loan volume.",
-      "Scaled and manage a 10-engineer team within a 40+ person organization, growing the team from 3 while securing 5 promotions and partnering cross-functionally with Product and Architecture.",
-      "Slashed fee reconciliation time from one day to minutes, eliminating 90%+ of manual intervention for Closing Coordinators and accelerating loan time-to-close.",
-      "Diagnosed and eliminated severe SQS queue latency and production downtime by deploying an OpenTelemetry framework paired with an AI-powered diagnostic engine for automated root-cause analysis.",
-      "Maintained hands-on technical leadership across enterprise Java, Kotlin, MyBatis, MySQL, and JavaScript systems through architecture, code review, and production support.",
+      "Scaled and manage a 10-engineer team within a 40+ person organization, more than doubling engineering output through AI-driven operational efficiencies.",
+      "Directed the architecture of core Credit subsystem upgrades, integrating third-party APIs for soft pulls, live debt monitoring, and derogatory credit event tracking, unlocking tens of millions in annual loan volume.",
+      "Slashed Closing Disclosure fee reconciliation time from days to hours, eliminating roughly 90%+ of manual intervention for Closing Coordinators and accelerating loan time-to-close.",
+      "Designed and engineered an improved observability framework through OpenTelemetry, paired with an AI-powered diagnostic engine for automated root-cause analysis.",
     ],
   },
   {
@@ -77,9 +75,9 @@ const EXPERIENCE: Job[] = [
     location: "Albany, NY",
     roles: [{ title: "Associate Software Engineer", dates: "Dec 2017 – May 2019" }],
     bullets: [
-      "Built and maintained interconnected backend systems for OrderStream, the company's flagship dropshipping product.",
+      "Built and maintained interconnected backend systems for OrderStream, the company's flagship dropshipping / order fulfillment service.",
       "Provided rotating, 24/7 on-call support for OrderStream's backend systems, resolving incidents and ensuring high availability.",
-      "Introduced a CI/CD pipeline for OrderStream's backend systems, automating builds and reducing deployment time from hours to minutes.",
+      "Introduced a CI/CD pipeline for OrderStream, automating builds and reducing deployment time from hours to minutes.",
     ],
   },
   {
@@ -101,32 +99,6 @@ const EDUCATION = {
   degree: "BS, Computer Science",
   dates: "September 2013 – May 2016",
 };
-
-function IconPin() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
-  );
-}
-
-function IconPhone() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z" />
-    </svg>
-  );
-}
-
-function IconMail() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-      <rect x="2" y="4" width="20" height="16" rx="2" />
-      <path d="m22 6-10 7L2 6" />
-    </svg>
-  );
-}
 
 function IconWave() {
   return (
@@ -537,36 +509,9 @@ type ResumeProps = {
 function Resume({ onOpenSignal }: ResumeProps) {
   return (
     <main className="mx-auto max-w-4xl px-6 py-16 sm:px-10">
-      <header className="relative mb-10 overflow-hidden rounded-2xl px-6 py-10 shadow-xl shadow-indigo-950/20 ring-1 ring-white/10 print:rounded-none print:p-0 print:shadow-none print:ring-0 sm:px-10 sm:py-14">
-        <NightSky />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-indigo-300 print:text-indigo-600">
-              Resume
-            </p>
-            <h1 className="mt-2 text-4xl font-semibold text-white print:text-neutral-900 sm:text-5xl">
-              Austin Hannaleck
-            </h1>
-            <p className="mt-2 text-lg text-neutral-300 print:text-neutral-600">
-              Software Engineering Manager — Backend &amp; Distributed Systems
-            </p>
-
-            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-neutral-300 print:text-neutral-600">
-              <span className="inline-flex items-center gap-1.5">
-                <IconPin /> Gilboa, NY
-              </span>
-              <a href="tel:+14138411801" className="inline-flex items-center gap-1.5 hover:text-white print:hover:text-neutral-600">
-                <IconPhone /> (413) 841-1801
-              </a>
-              <a
-                href="mailto:ahannaleck1@gmail.com"
-                className="inline-flex items-center gap-1.5 hover:text-white print:hover:text-neutral-600"
-              >
-                <IconMail /> ahannaleck1@gmail.com
-              </a>
-            </div>
-          </div>
-
+      <ProfileHeader
+        eyebrow="Resume"
+        actions={
           <button
             type="button"
             onClick={() => window.print()}
@@ -574,10 +519,10 @@ function Resume({ onOpenSignal }: ResumeProps) {
           >
             <IconDownload /> Download PDF
           </button>
-        </div>
-      </header>
+        }
+      />
 
-      <section className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <section className="mb-10 grid grid-cols-3 gap-3">
         {STATS.map((stat) => (
           <StatTile key={stat.label} stat={stat} />
         ))}
@@ -640,14 +585,12 @@ function Resume({ onOpenSignal }: ResumeProps) {
       </section>
 
       <section className="relative mb-10 overflow-hidden rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800 sm:p-8">
-        {/* The same NightSky backdrop as the hero, just dialed way down —
-            so the same sky quietly continues behind the timeline instead
-            of living only in one isolated banner at the top of the page. */}
-        <div className="opacity-[0.18]">
-          <NightSky />
-        </div>
         <div className="relative">
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500">
+          {/* mb-8, not the mb-4 other section headers use: each entry's
+              highlight backdrop (see TimelineEntry) extends -top-4 above
+              itself, so with only mb-4 here the first entry's tint/ring box
+              would reach all the way up to touch this header's text. */}
+          <h2 className="mb-8 text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500">
             Experience
           </h2>
           <TimelineRail>
