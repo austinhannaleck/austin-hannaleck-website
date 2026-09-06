@@ -6,7 +6,6 @@ type Stat = { value: string; label: string };
 const STATS: Stat[] = [
   { value: "10+", label: "Years in software engineering" },
   { value: "5+", label: "Years leading engineering teams" },
-  { value: "10", label: "Direct reports, scaled from 3" },
 ];
 
 const SUMMARY =
@@ -517,7 +516,7 @@ function Resume({ onOpenSignal }: ResumeProps) {
         }
       />
 
-      <section className="mb-10 grid grid-cols-3 gap-3">
+      <section className="mb-10 grid grid-cols-2 gap-3">
         {STATS.map((stat) => (
           <StatTile key={stat.label} stat={stat} />
         ))}
@@ -531,7 +530,7 @@ function Resume({ onOpenSignal }: ResumeProps) {
         <p className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
           <IconWave />
           <span>
-            <strong className="font-semibold">Signal</strong> — a Web Audio synth &amp; drum machine studio, built
+            Try <strong className="font-semibold">Signal</strong> - a Web Audio synth &amp; drum machine studio, built
             with React, TypeScript, and the raw Web Audio API, right here on this site.
           </span>
         </p>

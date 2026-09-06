@@ -1,20 +1,27 @@
 import { useMemo } from "react";
 
 /**
- * Decorative astrophotography-style backdrop for Home's hero band. Pure
- * CSS/SVG, no image asset: a deep navy/indigo gradient (the site's own
- * indigo accent, just darkened) with a scattered, twinkling starfield and
- * a handful of staggered shooting stars. Star positions AND shooting-star
- * start point/angle/distance/timing are all generated once per mount from
- * a small seeded PRNG, so nothing reshuffles on every re-render, but it
- * still differs from one page load to the next — and critically, the
- * shooting stars no longer all share one fixed trajectory: each gets its
- * own random start position, direction, and streak length, so it doesn't
- * read as "the same comet from the same spot" every time it fires.
+ * Decorative astrophotography-style backdrop shared by every page's header
+ * banner (see NightSkyBanner). Pure CSS/SVG, no image asset: a deep
+ * navy/indigo gradient (the site's own indigo accent, just darkened) with a
+ * scattered, twinkling starfield and a handful of staggered shooting stars.
+ * Star positions AND shooting-star start point/angle/distance/timing are all
+ * generated once per mount from a small seeded PRNG, so nothing reshuffles
+ * on every re-render, but it still differs from one page load to the next —
+ * and critically, the shooting stars no longer all share one fixed
+ * trajectory: each gets its own random start position, direction, and
+ * streak length, so it doesn't read as "the same comet from the same spot"
+ * every time it fires.
  *
  * `aria-hidden` + absolutely positioned behind `pointer-events-none` —
  * this is pure decoration, never in the tab order and never intercepts
- * clicks meant for the hero content stacked on top of it.
+ * clicks meant for the header content stacked on top of it.
+ *
+ * Cursor parallax: the blobs and starfield read `--sky-tilt-x`/
+ * `--sky-tilt-y` CSS custom properties (NightSkyBanner writes these on
+ * mousemove) rather than tracking the cursor themselves, so this component
+ * stays a pure function of props/DOM and has no pointer-event handlers of
+ * its own.
  */
 
 interface Star {
@@ -91,42 +98,64 @@ export default function NightSky() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit] print:hidden">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_#211a4d_0%,_#0d0f2b_55%,_#05060f_100%)]" />
-      <div className="absolute -left-16 top-10 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
-      <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-violet-500/15 blur-3xl" />
+      {/* Parallax: the two glow blobs drift opposite directions off the
+          cursor for a bit of depth, the starfield (closer to the "camera")
+          moves less than either. All three read the same CSS vars that
+          NightSkyBanner writes on mousemove, with a 0px fallback so this
+          still renders correctly without a reactive ancestor. */}
+      <div
+        className="absolute -left-16 top-10 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl transition-transform duration-300 ease-out"
+        style={{ transform: "translate(var(--sky-tilt-x, 0px), var(--sky-tilt-y, 0px))" }}
+      />
+      <div
+        className="absolute right-0 top-0 h-56 w-56 rounded-full bg-violet-500/15 blur-3xl transition-transform duration-300 ease-out"
+        style={{
+          transform:
+            "translate(calc(var(--sky-tilt-x, 0px) * -1), calc(var(--sky-tilt-y, 0px) * -1))",
+        }}
+      />
 
-      {stars.map((s, i) => (
-        <span
-          key={i}
-          className="night-sky-star absolute rounded-full bg-white"
-          style={{
-            left: `${s.x}%`,
-            top: `${s.y}%`,
-            width: `${s.size}px`,
-            height: `${s.size}px`,
-            boxShadow: s.size > 1.8 ? "0 0 4px 1px rgba(255,255,255,0.55)" : "none",
-            // `backwards` matters here: without it, a star with animation-delay
-            // just sits at its default (fully opaque) state until the delay
-            // elapses, then jumps straight to the 0% keyframe's dimmer
-            // opacity — a sudden, staggered "debrightening" per star over the
-            // first few seconds instead of a smooth twinkle from the start.
-            animation: `night-sky-twinkle ${s.duration}s ease-in-out ${s.delay}s infinite backwards`,
-          }}
-        />
-      ))}
+      <div
+        className="absolute inset-0 transition-transform duration-300 ease-out"
+        style={{
+          transform:
+            "translate(calc(var(--sky-tilt-x, 0px) * 0.4), calc(var(--sky-tilt-y, 0px) * 0.4))",
+        }}
+      >
+        {stars.map((s, i) => (
+          <span
+            key={i}
+            className="night-sky-star absolute rounded-full bg-white"
+            style={{
+              left: `${s.x}%`,
+              top: `${s.y}%`,
+              width: `${s.size}px`,
+              height: `${s.size}px`,
+              boxShadow: s.size > 1.8 ? "0 0 4px 1px rgba(255,255,255,0.55)" : "none",
+              // `backwards` matters here: without it, a star with animation-delay
+              // just sits at its default (fully opaque) state until the delay
+              // elapses, then jumps straight to the 0% keyframe's dimmer
+              // opacity — a sudden, staggered "debrightening" per star over the
+              // first few seconds instead of a smooth twinkle from the start.
+              animation: `night-sky-twinkle ${s.duration}s ease-in-out ${s.delay}s infinite backwards`,
+            }}
+          />
+        ))}
 
-      {shootingStars.map((s, i) => (
-        <span
-          key={i}
-          className="night-sky-shooting-star"
-          style={{
-            left: `${s.xPercent}%`,
-            top: `${s.yPercent}%`,
-            animationName: `night-sky-shoot-${i}`,
-            animationDuration: `${s.duration}s`,
-            animationDelay: `${s.delay}s`,
-          }}
-        />
-      ))}
+        {shootingStars.map((s, i) => (
+          <span
+            key={i}
+            className="night-sky-shooting-star"
+            style={{
+              left: `${s.xPercent}%`,
+              top: `${s.yPercent}%`,
+              animationName: `night-sky-shoot-${i}`,
+              animationDuration: `${s.duration}s`,
+              animationDelay: `${s.delay}s`,
+            }}
+          />
+        ))}
+      </div>
 
       <style>{`
         @keyframes night-sky-twinkle {

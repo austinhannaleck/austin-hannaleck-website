@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import NightSky from "./NightSky";
+import NightSkyBanner from "./NightSkyBanner";
 
 function IconPin() {
   return (
@@ -42,9 +42,8 @@ type ProfileHeaderProps = {
  * links themselves. */
 function ProfileHeader({ eyebrow, actions }: ProfileHeaderProps) {
   return (
-    <header className="relative mb-10 overflow-hidden rounded-2xl px-6 py-10 shadow-xl shadow-indigo-950/20 ring-1 ring-white/10 print:rounded-none print:p-0 print:shadow-none print:ring-0 sm:px-10 sm:py-14">
-      <NightSky />
-      <div className="relative flex flex-wrap items-start justify-between gap-4">
+    <NightSkyBanner>
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-indigo-300 print:text-indigo-600">
             {eyebrow}
@@ -79,7 +78,7 @@ function ProfileHeader({ eyebrow, actions }: ProfileHeaderProps) {
 
         {actions}
       </div>
-    </header>
+    </NightSkyBanner>
   );
 }
 
