@@ -1,3 +1,4 @@
+import { useCardTilt } from "../hooks/useCardTilt";
 import ProfileHeader from "./ProfileHeader";
 
 function IconArrowRight() {
@@ -24,6 +25,9 @@ type HomeProps = {
 };
 
 function Home({ onOpenResume, onOpenApps, onOpenAbout }: HomeProps) {
+  const resumeTilt = useCardTilt<HTMLButtonElement>();
+  const appsTilt = useCardTilt<HTMLButtonElement>();
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-16 sm:px-10">
       <ProfileHeader eyebrow="Portfolio" />
@@ -47,9 +51,10 @@ function Home({ onOpenResume, onOpenApps, onOpenAbout }: HomeProps) {
 
       <div className="grid gap-5 sm:grid-cols-2">
         <button
+          ref={resumeTilt}
           type="button"
           onClick={onOpenResume}
-          className="group flex flex-col overflow-hidden rounded-xl border border-neutral-200 text-left transition-colors hover:border-indigo-300 dark:border-neutral-800 dark:hover:border-indigo-800"
+          className="group flex flex-col overflow-hidden rounded-xl border border-neutral-200 text-left transition-[transform,colors] duration-150 ease-out hover:border-indigo-300 dark:border-neutral-800 dark:hover:border-indigo-800"
         >
           <div className="flex h-28 items-center justify-center bg-gradient-to-br from-neutral-700 to-neutral-900">
             <span className="text-2xl font-bold tracking-tight text-white/90">Resume</span>
@@ -66,9 +71,10 @@ function Home({ onOpenResume, onOpenApps, onOpenAbout }: HomeProps) {
         </button>
 
         <button
+          ref={appsTilt}
           type="button"
           onClick={onOpenApps}
-          className="group flex flex-col overflow-hidden rounded-xl border border-neutral-200 text-left transition-colors hover:border-indigo-300 dark:border-neutral-800 dark:hover:border-indigo-800"
+          className="group flex flex-col overflow-hidden rounded-xl border border-neutral-200 text-left transition-[transform,colors] duration-150 ease-out hover:border-indigo-300 dark:border-neutral-800 dark:hover:border-indigo-800"
         >
           <div className="flex h-28 items-center justify-center bg-gradient-to-br from-sky-500 to-blue-600">
             <span className="text-2xl font-bold tracking-tight text-white/90">Apps</span>

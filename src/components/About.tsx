@@ -1,3 +1,6 @@
+import { useCardTilt } from "../hooks/useCardTilt";
+import NightSkyBanner from "./NightSkyBanner";
+
 type Hobby = {
   emoji: string;
   title: string;
@@ -32,35 +35,49 @@ const HOBBIES: Hobby[] = [
   },
 ];
 
+type HobbyCardProps = {
+  hobby: Hobby;
+};
+
+function HobbyCard({ hobby }: HobbyCardProps) {
+  const tilt = useCardTilt<HTMLDivElement>();
+
+  return (
+    <div
+      ref={tilt}
+      className="flex gap-4 rounded-xl border border-neutral-200 p-5 transition-transform duration-150 ease-out dark:border-neutral-800"
+    >
+      <div
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-2xl ${hobby.accent}`}
+      >
+        {hobby.emoji}
+      </div>
+      <div>
+        <p className="font-medium">{hobby.title}</p>
+        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{hobby.description}</p>
+      </div>
+    </div>
+  );
+}
+
 function About() {
   return (
     <main className="mx-auto max-w-4xl px-6 py-16 sm:px-10">
-      <header className="mb-10">
-        <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+      <NightSkyBanner>
+        <p className="text-xs font-semibold uppercase tracking-widest text-indigo-300 print:text-indigo-600">
           About
         </p>
-        <h1 className="mt-2 text-4xl font-semibold sm:text-5xl">Beyond the code</h1>
-        <p className="mt-2 text-lg text-neutral-500 dark:text-neutral-400">
+        <h1 className="mt-2 text-4xl font-semibold text-white print:text-neutral-900 sm:text-5xl">
+          Beyond the code
+        </h1>
+        <p className="mt-2 text-lg text-neutral-300 print:text-neutral-600">
           A few other things I spend my time on.
         </p>
-      </header>
+      </NightSkyBanner>
 
       <div className="grid gap-5 sm:grid-cols-2">
         {HOBBIES.map((hobby) => (
-          <div
-            key={hobby.title}
-            className="flex gap-4 rounded-xl border border-neutral-200 p-5 dark:border-neutral-800"
-          >
-            <div
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-2xl ${hobby.accent}`}
-            >
-              {hobby.emoji}
-            </div>
-            <div>
-              <p className="font-medium">{hobby.title}</p>
-              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{hobby.description}</p>
-            </div>
-          </div>
+          <HobbyCard key={hobby.title} hobby={hobby} />
         ))}
       </div>
     </main>
