@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import Synth, { type SynthHandle, type SynthState } from "./Synth";
 import DrumMachine, { type DrumMachineHandle, type DrumMachineState } from "./DrumMachine";
 import Bassline, { type BasslineHandle, type BasslineState } from "./Bassline";
+import StageMode from "./StageMode";
 import { SKIN_NAMES, SKIN_PALETTES, type SkinName } from "./skins";
 
 /**
@@ -284,6 +285,8 @@ export default function StudioExample() {
 
   const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
+  const [stageMode, setStageMode] = useState(false);
+
   const [isDemoPlaying, setIsDemoPlaying] = useState(false);
 
   const toggleDemo = () => {
@@ -369,7 +372,7 @@ export default function StudioExample() {
           borderRadius: "10px",
           padding: "12px 18px",
           width: "100%",
-          maxWidth: "780px",
+          maxWidth: "1040px",
           boxSizing: "border-box",
           flexWrap: "wrap",
         }}
@@ -490,6 +493,25 @@ export default function StudioExample() {
           }}
         >
           {isSessionRecording ? "■ stop recording" : "record session"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStageMode(true)}
+          style={{
+            fontFamily: "inherit",
+            fontSize: "11px",
+            fontWeight: 700,
+            padding: "8px 16px",
+            borderRadius: "6px",
+            cursor: "pointer",
+            letterSpacing: "0.05em",
+            background: "#141310",
+            color: "#e8e4dc",
+            border: "1px solid #3a372f",
+          }}
+        >
+          ◉ visualize
         </button>
       </div>
 
@@ -741,6 +763,16 @@ export default function StudioExample() {
             opacity: 0,
             animation: "studio-beat-pulse 0.5s ease-out forwards",
           }}
+        />
+      )}
+
+      {stageMode && (
+        <StageMode
+          synthRef={synthRef}
+          drumRef={drumRef}
+          basslineRef={basslineRef}
+          skin={skin}
+          onClose={() => setStageMode(false)}
         />
       )}
       <style>{`
