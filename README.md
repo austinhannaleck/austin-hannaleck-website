@@ -35,9 +35,13 @@ pnpm dev           # start dev server with HMR
 pnpm build         # type-check (tsc -b) then production build to dist/
 pnpm preview       # preview the production build locally
 pnpm lint          # run ESLint over the project
+pnpm test          # run the Vitest suite once
 ```
 
-There is no test runner configured yet.
+Vitest covers the codebase's pure logic (game-tick reducers, `localStorage`
+sanitizers, the Signal jam-link encode/decode round trip), colocated as
+`*.test.ts` next to the code it covers. It doesn't cover rendering or the
+live Web Audio graph.
 
 ## Top-level structure
 
@@ -51,7 +55,7 @@ src/
     Apps.tsx                           # project showcase grid
     apps/                              # one folder per showcased app
       GetTheBuggy.tsx, getTheBuggy/    # Snake-style game
-      MakeTheBed.tsx, makeTheBed/      # a second small game
+      MakeTheBed.tsx, makeTheBed/      # a second small game, currently unpublished (see below)
       HiveMind.tsx                     # placeholder ("coming soon")
     instruments/                       # Signal: synth + drum machine + bassline
       Synth.tsx, DrumMachine.tsx, Bassline.tsx
@@ -162,6 +166,13 @@ that separates concerns the same way across both games:
 
 `HiveMind.tsx` is a placeholder for a not-yet-built app and intentionally
 has no game logic behind it.
+
+`MakeTheBed.tsx` is a different case: the game itself (`makeTheBed/`) is
+fully implemented, but it's currently unpublished, not unfinished. Its
+`Apps.tsx` card was deliberately pulled (see the "hide Lily app" commit),
+and `MakeTheBed.tsx` was swapped for a placeholder rather than the real
+component. The implementation underneath is left in place in case it's
+republished later; it isn't reachable from any current route.
 
 ## Shared visual effects
 
