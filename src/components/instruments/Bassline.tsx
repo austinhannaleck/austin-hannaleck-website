@@ -58,14 +58,14 @@ import { TutorialOverlay, type TutorialStep } from "./Tutorial";
  * note's decay the moment a slide is detected — a reasonable follow-up.
  */
 
-interface BassStep {
+export interface BassStep {
   note: string | null; // pitch class, e.g. "C", "D#" — octave comes from the global Octave control
   accent: boolean;
   slide: boolean;
 }
 
-const STEP_COUNT = 16;
-const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+export const STEP_COUNT = 16;
+export const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 // Semitone distance from A4 (440Hz) for each pitch class at the base
 // octave (Octave = 0 means this table's own octave, roughly C2-B2 — a
@@ -260,7 +260,7 @@ function Knob({ value, min, max, step = 0, onChange, size = 44, ariaLabel, disab
 const clampNum = (v: unknown, min: number, max: number, fallback: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
 
-function sanitizeBassPattern(raw: unknown): BassStep[] {
+export function sanitizeBassPattern(raw: unknown): BassStep[] {
   if (!Array.isArray(raw) || raw.length !== STEP_COUNT) {
     return Array.from({ length: STEP_COUNT }, () => ({ note: null, accent: false, slide: false }));
   }

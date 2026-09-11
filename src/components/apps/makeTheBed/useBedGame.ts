@@ -31,12 +31,14 @@ function createInitialState(): GameState {
   };
 }
 
-type Input = { left: boolean; right: boolean };
+export type Input = { left: boolean; right: boolean };
 
 // One functional update per tick: platform movement, the bed's fall
 // progress, and catch/miss resolution are all resolved together here so
 // a tick never produces more than one setState.
-function nextState(prev: GameState, input: Input): GameState {
+// Exported for testing (see nextState.test.ts) — not used outside this
+// module otherwise.
+export function nextState(prev: GameState, input: Input): GameState {
   if (prev.status !== "playing") return prev;
 
   let platformCol = prev.platformCol;
