@@ -177,8 +177,12 @@ function StatTile({ stat }: { stat: Stat }) {
   useEffect(() => {
     if (!revealed) return;
     if (!parsedStat) {
-      setSettled(true);
-      return;
+      // Deferred a frame (rather than set synchronously in the effect body)
+      // to match the count-up branch below, where settling likewise happens
+      // from inside a requestAnimationFrame callback, not the effect body
+      // itself.
+      const frameId = requestAnimationFrame(() => setSettled(true));
+      return () => cancelAnimationFrame(frameId);
     }
     const animationStart = performance.now();
     let animationFrameId: number;

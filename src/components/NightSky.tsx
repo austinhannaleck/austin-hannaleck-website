@@ -82,18 +82,22 @@ function makeShootingStars(count: number, rand: () => number): ShootingStar[] {
   });
 }
 
+// Read once at module load (one real page load, ignoring client-side
+// re-renders) rather than inside the component: calling Date.now() during
+// render is an impure read React's rules forbid, since render can run more
+// than once per commit (e.g. Strict Mode) without that meaning a new page
+// load happened.
+const PAGE_LOAD_SEED = Math.floor(Date.now() / 1000);
+
 export default function NightSky() {
-  const stars = useMemo(() => {
-    const seed = Math.floor(Date.now() / 1000);
-    return makeStars(90, seededRandom(seed));
-  }, []);
+  const stars = useMemo(() => makeStars(90, seededRandom(PAGE_LOAD_SEED)), []);
   // Separate seeded stream (not reusing the stars' rand sequence) so
   // adding/removing stars later can't shift the shooting stars' own
   // randomization as a side effect.
-  const shootingStars = useMemo(() => {
-    const seed = Math.floor(Date.now() / 1000) * 31 + 17;
-    return makeShootingStars(3, seededRandom(seed));
-  }, []);
+  const shootingStars = useMemo(
+    () => makeShootingStars(3, seededRandom(PAGE_LOAD_SEED * 31 + 17)),
+    [],
+  );
 
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit] print:hidden">
