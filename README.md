@@ -35,9 +35,13 @@ pnpm dev           # start dev server with HMR
 pnpm build         # type-check (tsc -b) then production build to dist/
 pnpm preview       # preview the production build locally
 pnpm lint          # run ESLint over the project
+pnpm test          # run the Vitest suite once
 ```
 
-There is no test runner configured yet.
+Vitest covers the codebase's pure logic (game-tick reducers, `localStorage`
+sanitizers, the Signal jam-link encode/decode round trip), colocated as
+`*.test.ts` next to the code it covers. It doesn't cover rendering or the
+live Web Audio graph.
 
 ## Top-level structure
 
@@ -51,7 +55,6 @@ src/
     Apps.tsx                           # project showcase grid
     apps/                              # one folder per showcased app
       GetTheBuggy.tsx, getTheBuggy/    # Snake-style game
-      MakeTheBed.tsx, makeTheBed/      # a second small game
       HiveMind.tsx                     # placeholder ("coming soon")
     instruments/                       # Signal: synth + drum machine + bassline
       Synth.tsx, DrumMachine.tsx, Bassline.tsx
@@ -145,23 +148,25 @@ read it before making non-trivial changes in `src/components/instruments/`.
 
 ## Showcased apps (`src/components/apps/`)
 
-Each app under `apps/` follows the same shape: a thin top-level component
-(e.g. `GetTheBuggy.tsx`) composing a folder of pieces (e.g. `getTheBuggy/`)
-that separates concerns the same way across both games:
+`GetTheBuggy.tsx` (a Snake-style game) is a thin top-level component
+composing a folder of pieces (`getTheBuggy/`) that separates concerns:
 
-- `use<Game>Game.ts`: a single hook owning all game state and the tick
-  loop (`useSnakeGame.ts`, `useBedGame.ts`), independent of rendering.
+- `useSnakeGame.ts`: a single hook owning all game state and the tick
+  loop, independent of rendering.
 - `types.ts`: shared domain types and tunable constants (grid size, timing,
   pickup effects) in one place.
 - `sounds.ts`: small Web Audio-based sound effects, kept separate from the
   synth engine in `instruments/`.
-- `*Storage.ts`: thin `localStorage` wrappers (leaderboard, best score)
-  with defensive parsing of whatever's already in a user's browser.
+- `leaderboardStorage.ts`: a thin `localStorage` wrapper with defensive
+  parsing of whatever's already in a user's browser.
 - Small presentational components for individual visual pieces (`Bug.tsx`,
-  `Carrot.tsx`, `Lily.tsx`, ...).
+  `Carrot.tsx`, ...).
 
 `HiveMind.tsx` is a placeholder for a not-yet-built app and intentionally
 has no game logic behind it.
+
+A second game, Make the Bed, previously lived here starring Austin's dog
+Lily; it's been removed rather than kept around unpublished.
 
 ## Shared visual effects
 

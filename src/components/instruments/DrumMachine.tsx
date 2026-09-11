@@ -52,7 +52,7 @@ import { TutorialOverlay, type TutorialStep } from "./Tutorial";
  * running a second, independently-drifting timer.
  */
 
-type TrackName = "kick" | "snare" | "closedHat" | "openHat" | "clap";
+export type TrackName = "kick" | "snare" | "closedHat" | "openHat" | "clap";
 
 const TRACKS: { id: TrackName; label: string }[] = [
   { id: "kick", label: "Kick" },
@@ -62,7 +62,7 @@ const TRACKS: { id: TrackName; label: string }[] = [
   { id: "clap", label: "Clap" },
 ];
 
-const STEP_COUNT = 16;
+export const STEP_COUNT = 16;
 
 const KEY_TO_TRACK: Record<string, TrackName> = {
   "1": "kick",
@@ -113,7 +113,7 @@ const KIT_PARAMS: Record<KitName, KitParams> = {
 };
 
 // A basic four-on-the-floor-ish starter groove so it's musical immediately.
-const DEFAULT_PATTERN: Record<TrackName, boolean[]> = {
+export const DEFAULT_PATTERN: Record<TrackName, boolean[]> = {
   kick: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
   snare: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
   closedHat: [true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false],
@@ -305,7 +305,7 @@ function Knob({ value, min, max, step = 0, onChange, size = 44, ariaLabel, disab
 const clampNum = (v: unknown, min: number, max: number, fallback: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
 
-function sanitizeDrumPattern(raw: unknown): Record<TrackName, boolean[]> {
+export function sanitizeDrumPattern(raw: unknown): Record<TrackName, boolean[]> {
   if (!raw || typeof raw !== "object") return DEFAULT_PATTERN;
   const r = raw as Record<string, unknown>;
   const out = {} as Record<TrackName, boolean[]>;

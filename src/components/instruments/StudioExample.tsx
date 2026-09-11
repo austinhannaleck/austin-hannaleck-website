@@ -20,7 +20,7 @@ import { SKIN_NAMES, SKIN_PALETTES, type SkinName } from "./skins";
  * banner with its own "play it" button — a real click, which is what
  * actually satisfies the autoplay policy (see each handle's `play`).
  */
-interface JamState {
+export interface JamState {
   skin: SkinName;
   bpm: number;
   synth: SynthState;
@@ -28,7 +28,7 @@ interface JamState {
   bassline: BasslineState;
 }
 
-function encodeJam(state: JamState): string {
+export function encodeJam(state: JamState): string {
   const json = JSON.stringify(state);
   const bytes = new TextEncoder().encode(json);
   let binary = "";
@@ -38,11 +38,32 @@ function encodeJam(state: JamState): string {
   return btoa(binary);
 }
 
-function decodeJam(encoded: string): JamState | null {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// The payload is base64 JSON a visitor could hand-edit or truncate, so this
+// validates just enough of the top-level shape to guarantee synth/drum/
+// bassline are always real objects, never undefined — each instrument's own
+// sanitizer (sanitizePatch, sanitizeDrumPattern, clampNum, etc.) still
+// handles anything malformed *within* them. Without this, a blind `as
+// JamState` cast could hand `undefined` to Synth's loadState, which (unlike
+// DrumMachine's/Bassline's) reads state.patch/.mode/etc. directly rather
+// than via `?.`, throwing during this component's mount effect instead of
+// just falling back to a blank preset.
+export function decodeJam(encoded: string): JamState | null {
   try {
     const binary = atob(encoded);
     const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes)) as JamState;
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (!isPlainObject(parsed)) return null;
+    return {
+      skin: SKIN_NAMES.includes(parsed.skin as SkinName) ? (parsed.skin as SkinName) : "basic",
+      bpm: typeof parsed.bpm === "number" ? parsed.bpm : 120,
+      synth: (isPlainObject(parsed.synth) ? parsed.synth : {}) as unknown as SynthState,
+      drum: (isPlainObject(parsed.drum) ? parsed.drum : {}) as unknown as DrumMachineState,
+      bassline: (isPlainObject(parsed.bassline) ? parsed.bassline : {}) as unknown as BasslineState,
+    };
   } catch {
     return null;
   }

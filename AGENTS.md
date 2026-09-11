@@ -26,9 +26,15 @@ pnpm dev           # start dev server with HMR
 pnpm build         # type-check (tsc -b) then production build to dist/
 pnpm preview       # preview the production build locally
 pnpm lint          # run ESLint over the project
+pnpm test          # run the Vitest suite once
 ```
 
-There is no test runner configured yet.
+Vitest covers the codebase's pure logic: game-tick reducers, `localStorage`
+sanitizers, and the Signal jam-link encode/decode round trip. It deliberately
+does not cover rendering or the live Web Audio graph — nothing here spins up
+an `AudioContext` or renders a component tree, both of which would need much
+heavier test infrastructure for comparatively little payoff. Test files sit
+next to the code they cover, named `*.test.ts`.
 
 ## Architecture
 

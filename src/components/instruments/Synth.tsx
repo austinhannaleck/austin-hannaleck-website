@@ -155,7 +155,7 @@ const DEFAULT_SEQ: SeqStep[] = [
 // mode, arp settings, or the sequencer pattern, since loading a patch
 // shouldn't clobber what you're playing, just how it sounds.
 
-interface SynthPatch {
+export interface SynthPatch {
   waveform: WaveType;
   voiceMode: VoiceMode;
   octaveShift: number;
@@ -204,7 +204,7 @@ const PRESET_SLOT_COUNT = 10;
 // stale localStorage data saved before a field (like octaveShift) was
 // added — without this, a missing field becomes `undefined`, which
 // silently turns into NaN in pitch math and kills the audio entirely.
-function sanitizePatch(patch: Partial<SynthPatch> | undefined | null): SynthPatch {
+export function sanitizePatch(patch: Partial<SynthPatch> | undefined | null): SynthPatch {
   return { ...INIT_PATCH, ...(patch ?? {}) };
 }
 
@@ -287,7 +287,7 @@ function randomizePatch(): SynthPatch {
 }
 // -----------------------------------------------------------------------
 
-const INIT_PATCH: SynthPatch = {
+export const INIT_PATCH: SynthPatch = {
   waveform: "sawtooth", voiceMode: "mono", octaveShift: 0, unisonCount: 1, detuneAmount: 0, subLevel: 0, noiseLevel: 0,
   filterType: "lowpass", filterBlend: 0.5, cutoff: 4200, resonance: 3,
   filterEnvAmount: 1800, filterEnvDecay: 0.2, attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.3,
@@ -1215,22 +1215,26 @@ export default function Synth({
         bpm,
       }),
       loadState: (state) => {
-        applyPatch(state.patch);
+        // `?.` throughout (matching DrumMachine's/Bassline's loadState):
+        // state comes from a shared jam link a visitor could hand-edit or
+        // truncate, so this must tolerate `state` itself being malformed,
+        // not just its individual fields.
+        applyPatch(state?.patch as SynthPatch);
         // Land silently in Keys mode no matter what was saved — see
         // pendingPlayModeRef above for why. `play()` applies the real mode.
-        const targetMode = PLAY_MODES.includes(state.mode) ? state.mode : "keys";
+        const targetMode = PLAY_MODES.includes(state?.mode as PlayMode) ? (state.mode as PlayMode) : "keys";
         setMode("keys");
         pendingPlayModeRef.current = targetMode === "keys" ? null : targetMode;
-        setArpPattern(ARP_PATTERNS.includes(state.arpPattern) ? state.arpPattern : "up");
-        setArpOctaves(Math.round(clampNum(state.arpOctaves, 1, 3, 1)));
-        setRate(RATES.includes(state.rate) ? state.rate : "1/16");
-        setGate(clampNum(state.gate, 0.05, 1, 0.6));
+        setArpPattern(ARP_PATTERNS.includes(state?.arpPattern as ArpPattern) ? (state.arpPattern as ArpPattern) : "up");
+        setArpOctaves(Math.round(clampNum(state?.arpOctaves, 1, 3, 1)));
+        setRate(RATES.includes(state?.rate as Rate) ? (state.rate as Rate) : "1/16");
+        setGate(clampNum(state?.gate, 0.05, 1, 0.6));
         const steps =
-          Array.isArray(state.seqSteps) && state.seqSteps.length === 8
+          Array.isArray(state?.seqSteps) && state.seqSteps.length === 8
             ? state.seqSteps.map((s) => ({ note: typeof s?.note === "string" ? s.note : null }))
             : DEFAULT_SEQ;
         setSeqSteps(steps);
-        if (externalBpm === undefined) setInternalBpm(Math.round(clampNum(state.bpm, 40, 200, 120)));
+        if (externalBpm === undefined) setInternalBpm(Math.round(clampNum(state?.bpm, 40, 200, 120)));
       },
       play: () => {
         const ctx = ensureAudioGraph();

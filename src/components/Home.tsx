@@ -81,7 +81,7 @@ function Home({ onOpenResume, onOpenApps, onOpenAbout }: HomeProps) {
           </div>
           <div className="flex flex-1 flex-col gap-2 p-5">
             <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              Signal, HiveMind, and whatever I build next.
+              Signal, Get the Buggy, and whatever I build next.
             </p>
             <span className="mt-auto inline-flex items-center gap-1 pt-2 text-sm font-medium text-indigo-600 group-hover:gap-1.5 dark:text-indigo-400">
               Explore Apps

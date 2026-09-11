@@ -23,10 +23,20 @@ export default defineConfig([
     // Raw Web Audio engine components: ref-mirroring for stable callbacks
     // and effect-driven voice cutover are deliberate here, not React
     // Compiler-unsafe patterns — see .cursor/rules/synth-project.mdc.
+    //
+    // react-refresh/only-export-components is also off here: each file
+    // exports its pure sanitize*() function (and the small constants it
+    // depends on, e.g. INIT_PATCH) alongside the component so it's directly
+    // unit-testable (see the sibling *.test.ts files) without splitting a
+    // single-purpose pure function out into its own module. The tradeoff is
+    // losing Fast Refresh for these files in `pnpm dev` (an edit here
+    // triggers a full reload instead of a hot swap) — a minor dev-loop cost,
+    // not a shipped-behavior one.
     files: ['src/components/instruments/**/*.{ts,tsx}'],
     rules: {
       'react-hooks/refs': 'off',
       'react-hooks/set-state-in-effect': 'off',
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])
