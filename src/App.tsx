@@ -8,7 +8,6 @@ import StudioExample from "./components/instruments/StudioExample";
 import TechnicalDetails from "./components/instruments/TechnicalDetails";
 import HiveMind from "./components/apps/HiveMind";
 import GetTheBuggy from "./components/apps/GetTheBuggy";
-import MakeTheBed from "./components/apps/MakeTheBed";
 
 type Tab = "home" | "resume" | "apps" | "about";
 
@@ -177,7 +176,6 @@ function App() {
               )}
               {activeApp === "hivemind" && <HiveMind />}
               {activeApp === "buggy" && <GetTheBuggy />}
-              {activeApp === "makethebed" && <MakeTheBed />}
             </div>
           </div>
         )}

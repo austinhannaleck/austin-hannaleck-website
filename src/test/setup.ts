@@ -1,9 +1,9 @@
 // Minimal in-memory localStorage polyfill for the test environment.
 // Node has no global `localStorage`, but *Storage.ts wrappers (see
-// getTheBuggy/leaderboardStorage.ts, makeTheBed/bestScoreStorage.ts) call it
-// directly at module scope, exactly like they would in a browser. Reaching
-// for jsdom just for this one API felt heavier than the tests warrant, so
-// this stands in with only the subset those wrappers use.
+// getTheBuggy/leaderboardStorage.ts) call it directly at module scope,
+// exactly like they would in a browser. Reaching for jsdom just for this
+// one API felt heavier than the tests warrant, so this stands in with only
+// the subset those wrappers use.
 class MemoryStorage implements Storage {
   private store = new Map<string, string>();
 
