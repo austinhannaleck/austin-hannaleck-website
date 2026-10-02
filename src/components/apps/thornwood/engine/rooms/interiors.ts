@@ -14,7 +14,7 @@ const BOOKS = [
   ['"101 Uses for a Pot," by Anonymous.', "Use 1: Smash it. Uses 2 through 101: See Use 1."],
   ['"Tortoise Racing for Beginners." Every page is a picture of the same tortoise, a tiny bit further along. It\'s a flip book!'],
   ['"The Gatekeeper\'s Log," by Mossbeard. Day 1: Kept the gate. Day 2: Kept the gate. Day 3: Lost the key. Day 4: Retired.'],
-  ['A cookbook, "Soups of the Swamp." Somebody has scribbled in the margins. Most of the notes just say "more flies."'],
+  ['A cookbook, "Soups of the Swamp." Somebody has scribbled in the margins. Most of the notes just say "why?"'],
 ];
 
 const FIREPLACE = [
@@ -48,18 +48,18 @@ const INN_FIRE = [["A cozy fire. A snail is asleep on the hearth, which explains
 const INN_TABLE = [["A tray of tea and biscuits for guests. The biscuits are shaped like snails."]];
 const RECORDS = [
   ["'The Records of Fernwhistle,' volumes one through forty. Volume twelve is just recipes."],
-  ["'Mayor Bellwether's Speeches, Collected.' Every one of them starts with 'Baaa-sically.'"],
+  ["'Mayor Bellwether's Speeches, Collected.' Every one of them starts with 'Ahem.'"],
 ];
 const HALL_FIRE = [["A grand marble fireplace. A brass plaque says: PLEASE DO NOT TOAST MARSHMALLOWS DURING MEETINGS."]];
 const COUNCIL = [
   ["The town council's meeting table. There's a list on it: 1. Fix the bridge. 2. Find the ring. 3. Lunch."],
   ["Somebody has crossed out 'Fix the bridge' and written 'IT FIXED ITSELF!!' in very excited handwriting."],
 ];
-const MOLE_BOOKS = [
-  ["'Tunnels I Have Known,' by Marigold. It's surprisingly gripping."],
-  ["A scrapbook full of pressed flowers, and a drawing of a mole with a very big beard. 'My brother,' says the caption."],
+const MARIGOLD_BOOKS = [
+  ["'Teas I Have Known,' by Marigold. Every chapter is about dandelion."],
+  ["A scrapbook full of pressed flowers, and a drawing of a man with a very big beard. 'My brother,' says the caption."],
 ];
-const MOLE_FIRE = [["A snug little fire. A kettle of dandelion tea sits beside it, keeping warm."]];
+const MARIGOLD_FIRE = [["A snug little fire. A kettle of dandelion tea sits beside it, keeping warm."]];
 const DANDELION = [["Dandelion tea. It's bright yellow, and it smells of a summer meadow. Two cups, just in case."]];
 
 export const INTERIOR_ROOMS: Record<string, RoomDef> = {
@@ -95,7 +95,7 @@ export const INTERIOR_ROOMS: Record<string, RoomDef> = {
   },
 
   "interior:1,0": {
-    name: "Ribbit's Wares",
+    name: "Haggleby's Wares",
     music: "village",
     shelves: "jars",
     map: [
@@ -111,9 +111,9 @@ export const INTERIOR_ROOMS: Record<string, RoomDef> = {
       "##p___RRRR___p##",
       "#######EE#######",
     ],
-    // Ribbit minds the shop from behind the counter; you talk to him
+    // Haggleby minds the shop from behind the counter; you talk to him
     // across it, and the Heart Container for sale sits on top of it.
-    npcs: [{ kind: "ribbit", col: 7.5, row: 3 }],
+    npcs: [{ kind: "haggleby", col: 7.5, row: 3 }],
     warps: {
       "7,10": { roomId: "overworld:1,1", col: 12, row: 3, facing: "down" },
       "8,10": { roomId: "overworld:1,1", col: 12, row: 3, facing: "down" },
@@ -251,8 +251,8 @@ export const INTERIOR_ROOMS: Record<string, RoomDef> = {
     ],
     npcs: [{ kind: "marigold", col: 9.5, row: 4 }],
     examine: {
-      ...lookAt(MOLE_BOOKS, [4, 2], [5, 2], [12, 2], [13, 2]),
-      ...lookAt(MOLE_FIRE, [8, 2], [9, 2]),
+      ...lookAt(MARIGOLD_BOOKS, [4, 2], [5, 2], [12, 2], [13, 2]),
+      ...lookAt(MARIGOLD_FIRE, [8, 2], [9, 2]),
       ...lookAt(DANDELION, [7, 6], [8, 6]),
     },
     warps: doorOut(27, 6),

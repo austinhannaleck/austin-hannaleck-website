@@ -32,7 +32,7 @@ import {
   type Input,
   type NpcKind,
 } from "./types";
-import { ROOMS, boxAtTile, spawnAtTile } from "./world";
+import { ROOMS, boxAtTile, spawnAtTile, type Respawn } from "./world";
 
 // Gameplay tests: each one sets up a scene, feeds the engine inputs one
 // fixed step at a time (exactly like the real game loop does), and checks
@@ -124,12 +124,12 @@ describe("starting out", () => {
     expect(game.hero.action).toBe("none");
   });
 
-  it("can buy a heart container from Ribbit, across his counter", () => {
+  it("can buy a heart container from Haggleby, across his counter", () => {
     const game = newGame();
     game.inventory.gems = 50;
     enter(game, "interior:1,0", 7.5, 5, "up");
     tap(game, "sword");
-    expect(game.dialog?.speaker).toBe("Ribbit");
+    expect(game.dialog?.speaker).toBe("Haggleby");
     finishDialogs(game);
     expect(game.inventory.gems).toBe(10);
     expect(game.hero.maxHp).toBe(8);
@@ -311,7 +311,7 @@ describe("Puddlebrook's houses", () => {
     expect(books.some((pages) => pages[0] === game.dialog?.pages[0])).toBe(true);
   });
 
-  it("sell the heart container right off Ribbit's counter", () => {
+  it("sell the heart container right off Haggleby's counter", () => {
     const game = newGame();
     game.inventory.gems = 45;
     enter(game, "interior:1,0", 5, 5, "up");
@@ -325,13 +325,13 @@ describe("Puddlebrook's houses", () => {
     expect(game.dialog?.pages).toEqual(WARES_SOLD_PAGES);
   });
 
-  it("have a service bell that makes Ribbit jump", () => {
+  it("have a service bell that makes Haggleby jump", () => {
     const game = newGame();
     enter(game, "interior:1,0", 10, 5, "up");
     tap(game, "sword");
     expect(sounds(game)).toContain("bell");
-    expect(game.dialog?.speaker).toBe("Ribbit");
-    expect(game.npcs.find((n) => n.kind === "ribbit")?.talkFrames).toBeGreaterThan(0);
+    expect(game.dialog?.speaker).toBe("Haggleby");
+    expect(game.npcs.find((n) => n.kind === "haggleby")?.talkFrames).toBeGreaterThan(0);
   });
 });
 
@@ -590,7 +590,7 @@ describe("dungeon mechanics", () => {
     expect(sounds(game)).not.toContain("itemGet");
   });
 
-  it("shuts you in until every enemy is beaten, then reveals the chest", () => {
+  it("shuts you in until every enemy is beaten, then reveals the chest, with one jingle for the lot", () => {
     const game = newGame();
     enter(game, "bramblekeep:2,2", 2, 4, "left", true);
     expect(game.shuttersClosed).toBe(true);
@@ -602,7 +602,7 @@ describe("dungeon mechanics", () => {
     step(game);
     expect(game.shuttersClosed).toBe(false);
     expect(game.tiles[5][11]).toBe("C");
-    expect(sounds(game)).toContain("chestAppear");
+    expect(sounds(game).filter((name) => name === "puzzleSolved")).toHaveLength(1);
   });
 
   it("swaps places across the chasm with the Switcheroo", () => {
@@ -631,6 +631,25 @@ describe("dungeon mechanics", () => {
     expect(centerOf(game.hero).x).toBeGreaterThan(180);
     step(game, input({ down: true }), 20);
     expect(game.barsOpen).toBe(true);
+  });
+
+  it("plays the jingle when a statue holds the plate down, but not when you do", () => {
+    const game = newGame();
+    game.inventory.owned.add("switcheroo");
+    enter(game, "bramblekeep:0,1", 2, 2, "right");
+    // Off the plate and back on: the bars shut and open again, but that's
+    // no puzzle solved.
+    step(game, input({ down: true }), 20);
+    heroAt(game, 2, 2, "right");
+    step(game);
+    expect(game.barsOpen).toBe(true);
+    expect(sounds(game).filter((name) => name === "bars")).toHaveLength(2);
+    expect(sounds(game)).not.toContain("puzzleSolved");
+
+    tap(game, "tool");
+    step(game, IDLE, 60);
+    expect(game.plateHeld).toBe(true);
+    expect(sounds(game)).toContain("puzzleSolved");
   });
 
   it("flips the crystal switch with a bolt from across the pit", () => {
@@ -685,12 +704,81 @@ describe("defeated enemies", () => {
     expect(game.tiles[5][11]).toBe("C");
   });
 
-  it("come back in the overworld, the classic way", () => {
+  it("stay defeated in the overworld too, unless their spawn says otherwise", () => {
     const game = newGame();
     enter(game, "overworld:0,1", 7, 5, "down", true);
     defeat(game, 0);
     loadRoom(game, "overworld:0,1");
-    expect(game.enemies).toHaveLength(3);
+    expect(game.enemies.map((e) => e.spawn)).toEqual([1, 2]);
+  });
+
+  // No room uses these rules yet, so the tests lend one to a room's
+  // enemies for as long as the test runs.
+  function withRespawn(roomId: string, respawn: Respawn, test: () => void): void {
+    const def = ROOMS[roomId];
+    const authored = def.enemies;
+    def.enemies = authored!.map((spawn) => ({ ...spawn, respawn }));
+    try {
+      test();
+    } finally {
+      def.enemies = authored;
+    }
+  }
+
+  it("come back every time you return when they always respawn", () => {
+    withRespawn("overworld:0,1", { rule: "always" }, () => {
+      const game = newGame();
+      enter(game, "overworld:0,1", 7, 5, "down", true);
+      defeat(game, 0);
+      // Nothing to remember, so nothing to save.
+      expect(game.events).not.toContainEqual({ type: "checkpoint" });
+      loadRoom(game, "overworld:0,1");
+      expect(game.enemies.map((e) => e.spawn)).toEqual([0, 1, 2]);
+    });
+  });
+
+  it("come back on a timer, counted in time spent playing", () => {
+    withRespawn("overworld:0,1", { rule: "timer", seconds: 5 }, () => {
+      const game = newGame();
+      enter(game, "overworld:0,1", 7, 5, "down", true);
+      defeat(game, 0);
+      expect(game.events).toContainEqual({ type: "checkpoint" });
+
+      // Off to Puddlebrook to wait, popping back in just before it's time.
+      enter(game, "overworld:1,1", 7.5, 8, "up");
+      step(game, IDLE, 5 * 60 - 1);
+      loadRoom(game, "overworld:0,1");
+      expect(game.enemies.map((e) => e.spawn)).toEqual([1, 2]);
+
+      step(game);
+      loadRoom(game, "overworld:0,1");
+      expect(game.enemies.map((e) => e.spawn)).toEqual([0, 1, 2]);
+    });
+  });
+
+  it("keep their timers through a save", () => {
+    withRespawn("overworld:0,1", { rule: "timer", seconds: 5 }, () => {
+      const game = newGame();
+      enter(game, "overworld:0,1", 7, 5, "down", true);
+      defeat(game, 0);
+      const resumed = createGame(2, sanitizeSave(JSON.parse(JSON.stringify(snapshotSave(game)))));
+      loadRoom(resumed, "overworld:0,1");
+      expect(resumed.enemies.map((e) => e.spawn)).toEqual([1, 2]);
+
+      resumed.frame += 5 * 60;
+      loadRoom(resumed, "overworld:0,1");
+      expect(resumed.enemies.map((e) => e.spawn)).toEqual([0, 1, 2]);
+    });
+  });
+
+  it("never brings a boss back, whatever its spawn says", () => {
+    withRespawn("bramblekeep:0,2", { rule: "always" }, () => {
+      const game = newGame();
+      enter(game, "bramblekeep:0,2", 4, 5, "left", true);
+      finishBoss(game, game.enemies[0]);
+      loadRoom(game, "bramblekeep:0,2");
+      expect(game.enemies).toHaveLength(0);
+    });
   });
 });
 
@@ -1055,6 +1143,21 @@ describe("the soundtrack", () => {
     game.enemies = [];
     step(game);
     expect(game.shuttersClosed).toBe(false);
+    expect(musicFor(game)).toBe("dungeon");
+  });
+
+  it("goes quiet as a boss goes down, then plays its fanfare instead of the puzzle jingle", () => {
+    const game = newGame();
+    enter(game, "bramblekeep:0,2", 13, 5, "left", true);
+    const clank = game.enemies[0];
+    damageEnemy(game, clank, 99, null);
+    expect(clank.mode).toBe("dying");
+    expect(musicFor(game)).toBeNull();
+
+    for (let i = 0; i < 200 && game.enemies.length > 0; i++) step(game);
+    expect(game.tiles[5][7]).toBe("C");
+    expect(sounds(game)).toContain("bossDefeated");
+    expect(sounds(game)).not.toContain("puzzleSolved");
     expect(musicFor(game)).toBe("dungeon");
   });
 

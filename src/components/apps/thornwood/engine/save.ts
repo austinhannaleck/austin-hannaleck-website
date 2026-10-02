@@ -25,7 +25,7 @@ import { ROOMS, roomSize } from "./world";
 // Changing this shape means bumping SAVE_VERSION and adding a step to
 // MIGRATIONS below that turns the old shape into the new one, so nobody's
 // saved game gets thrown away.
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export type SaveData = {
   version: typeof SAVE_VERSION;
@@ -37,6 +37,8 @@ export type SaveData = {
   gateKey: boolean;
   equipped: ToolId | null;
   flags: string[];
+  // Beaten enemies, by defeatKey (respawn.ts), and the frame each fell on.
+  defeated: Record<string, number>;
   frames: number;
   deaths: number;
 };
@@ -53,6 +55,7 @@ export function snapshotSave(state: GameState): SaveData {
     gateKey: inv.gateKey,
     equipped: inv.equipped,
     flags: [...state.flags].sort(),
+    defeated: Object.fromEntries(state.defeated),
     frames: state.frame,
     deaths: state.deaths,
   };
@@ -97,6 +100,20 @@ const MIGRATIONS: Record<number, (save: RawSave) => RawSave> = {
       gateKey: unused(save.hasGateKey, "door:overworld:1,0:7,2"),
     };
   },
+  // Version 2 only remembered beaten dungeon enemies, as flags like
+  // "defeated:bramblekeep:1,2:0". Now every beaten enemy is remembered
+  // with the frame it fell on, so some can come back after a while. When
+  // those old ones fell isn't known, so they get 0, as long ago as can be.
+  2: (save) => {
+    const flags = Array.isArray(save.flags) ? save.flags : [];
+    const beaten = (flag: unknown): flag is string => typeof flag === "string" && flag.startsWith("defeated:");
+    return {
+      ...save,
+      version: 3,
+      flags: flags.filter((flag) => !beaten(flag)),
+      defeated: Object.fromEntries(flags.filter(beaten).map((flag) => [flag.slice("defeated:".length), 0])),
+    };
+  },
 };
 
 function migrate(save: RawSave): RawSave | null {
@@ -116,6 +133,16 @@ function sanitizeKeys(raw: unknown): Record<Dungeon, DungeonKeys> {
     if (isRecord(found)) keys[dungeon] = { small: clampInt(found.small, 0, 9, 0), big: found.big === true };
   }
   return keys;
+}
+
+// Anything that isn't a frame number is dropped.
+function sanitizeDefeated(raw: unknown): Record<string, number> {
+  const defeated: Record<string, number> = {};
+  if (!isRecord(raw)) return defeated;
+  for (const [key, fellAt] of Object.entries(raw)) {
+    if (finiteNumber(fellAt) !== null) defeated[key] = clampInt(fellAt, 0, Number.MAX_SAFE_INTEGER, 0);
+  }
+  return defeated;
 }
 
 // Whatever's in a player's browser could be old, hand-edited, or junk.
@@ -153,6 +180,7 @@ export function sanitizeSave(input: unknown): SaveData | null {
     // Whether it's actually owned is settled when the game loads.
     equipped: TOOLS.includes(raw.equipped as ToolId) ? (raw.equipped as ToolId) : null,
     flags: Array.isArray(raw.flags) ? raw.flags.filter((f): f is string => typeof f === "string") : [],
+    defeated: sanitizeDefeated(raw.defeated),
     frames: clampInt(raw.frames, 0, Number.MAX_SAFE_INTEGER, 0),
     deaths: clampInt(raw.deaths, 0, 1_000_000, 0),
   };

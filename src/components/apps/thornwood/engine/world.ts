@@ -35,9 +35,15 @@ export type ChestDef = {
   hidden?: boolean;
 };
 
+// Whether a beaten enemy is back the next time you walk into its room:
+// never, once enough time has passed (time spent playing), or always.
+// Bosses ignore this: a beaten boss stays beaten.
+export type Respawn = { rule: "never" } | { rule: "timer"; seconds: number } | { rule: "always" };
+
 // Spawn coordinates are in tiles and may be fractional (7.5 centers
-// something between columns 7 and 8).
-export type EnemySpawn = { kind: EnemyKind; col: number; row: number };
+// something between columns 7 and 8). Without a `respawn` rule, an enemy
+// gets DEFAULT_RESPAWN (respawn.ts).
+export type EnemySpawn = { kind: EnemyKind; col: number; row: number; respawn?: Respawn };
 export type NpcSpawn = {
   kind: NpcKind;
   col: number;

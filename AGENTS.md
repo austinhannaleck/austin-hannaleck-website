@@ -115,6 +115,11 @@ by accident:
   the boss key opens only the boss door, and every key is used up by the door it opens.
   "Has the key" isn't "found the key", so dialogue that cares about the second checks the key's
   chest flag.
+- **Beaten enemies come back by rule.** An `EnemySpawn` can have a `respawn` rule: `never`,
+  `timer` (seconds of play time), or `always`. Without one it gets `DEFAULT_RESPAWN`
+  (`engine/respawn.ts`), currently `never`. Beaten enemies are kept in `state.defeated` with the
+  frame they fell on, and the rule is checked each time the room loads, so changing a spawn's rule
+  works with existing saves. Bosses ignore it: their boss flag keeps them beaten.
 - **Save format changes need a migration.** `engine/save.ts` has a `SAVE_VERSION` and a
   `MIGRATIONS` table. Changing `SaveData`'s shape means bumping the version and adding a step that
   turns the previous shape into the new one, plus a `save.test.ts` case that feeds in a literal
@@ -124,5 +129,9 @@ by accident:
   `useThornwood.ts`).
 - **Music** (`audio/music.ts`) is a melody plus one chord per bar; bass and arpeggios are generated
   from the chords. `music.test.ts` checks each melody fills exactly its bars.
+- **Stingers** are the short fanfares for big moments (`STINGERS` in `audio/music.ts`): a treasure,
+  a puzzle solved, a boss beaten. The engine asks for one with a sound event; the theme ducks under
+  it, and a theme change waits until it's over. The engine decides when a puzzle counts as solved
+  (`updateMechanisms` in `engine/room.ts`), and a boss room gets the boss fanfare instead.
 - New gameplay rules get a test in `engine/engine.test.ts` that drives them with real inputs.
 - `FOLLOWUP_IDEAS.md` in that folder lists intentionally deferred features.

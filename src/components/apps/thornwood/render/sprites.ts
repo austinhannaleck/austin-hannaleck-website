@@ -23,15 +23,29 @@ function walkCycle(stand: Art, step: Art): Art[] {
   return [stand, step, stand, flipX(step)];
 }
 
+// A villager with their eyes open, and shut for blinking.
+export type Blinker = { open: Sprite; shut: Sprite };
+
+function blinker(open: Art, shut: Art): Blinker {
+  return { open: sprite(open), shut: sprite(shut) };
+}
+
+// A knight, down-facing, glancing to either side.
+function glances(colors: Record<string, string> = {}): { left: Sprite; right: Sprite } {
+  return {
+    left: sprite(recolor(creatures.KNIGHT_DOWN_LOOK_LEFT, colors)),
+    right: sprite(recolor(creatures.KNIGHT_DOWN_LOOK_RIGHT, colors)),
+  };
+}
+
 const KNIGHT_TO_FUMBLETON = { r: "b", R: "B", y: "c", z: "w", n: "N" };
 const KNIGHT_TO_STOUT = { r: "g", R: "G", n: "N" };
-const RIBBIT_TO_HOPSWORTH = { g: "n", G: "N", l: "m", r: "b", R: "B" };
-// Tilly and the hide-and-seek gang: fur, then clothes.
-const BUNNIES = {
+// Tilly and the hide-and-seek gang: hair, skin, then clothes.
+const KIDS = {
   tilly: {},
-  bo: { m: "n", n: "N", r: "g", R: "G" },
-  pip: { m: "w", r: "b", R: "B" },
-  fern: { m: "E", r: "f", R: "F" },
+  bo: { j: "C", h: "e", H: "e", s: "n", S: "N", x: "N", n: "N", r: "g", R: "G" },
+  pip: { j: "z", h: "y", H: "Y", r: "b", R: "B" },
+  fern: { j: "n", h: "N", H: "e", S: "x", s: "S", x: "N", r: "f", R: "F" },
 };
 const TO_BLUE = { r: "t", R: "T", q: "u" };
 
@@ -42,7 +56,17 @@ function build() {
       walkCycle(hero.HERO_UP, hero.HERO_UP_STEP),
       [hero.HERO_RIGHT, hero.HERO_RIGHT_STEP, hero.HERO_RIGHT, hero.HERO_RIGHT_STEP],
     ),
-    attack: facings([hero.HERO_DOWN_ATTACK], [hero.HERO_UP_ATTACK], [hero.HERO_RIGHT_ATTACK]),
+    // One pose per stretch of the sword's arc (see hero.ts). Facing left,
+    // the arc comes up from below rather than over the top, so it has low
+    // poses of its own.
+    swing: {
+      down: [hero.HERO_DOWN_SWING_A, hero.HERO_DOWN_SWING_B, hero.HERO_DOWN_SWING_C].map(sprite),
+      up: [hero.HERO_UP_SWING_A, hero.HERO_UP_SWING_B, hero.HERO_UP_SWING_C].map(sprite),
+      right: [hero.HERO_RIGHT_SWING_A, hero.HERO_RIGHT_SWING_B, hero.HERO_RIGHT_SWING_C].map(sprite),
+      left: [hero.HERO_LEFT_SWING_A, hero.HERO_LEFT_SWING_B, hero.HERO_RIGHT_SWING_C].map((art) => sprite(flipX(art))),
+    } satisfies Facings<Sprite[]>,
+    // From behind there are no eyes to shut.
+    blink: { down: sprite(hero.HERO_DOWN_BLINK), right: sprite(hero.HERO_RIGHT_BLINK), left: sprite(flipX(hero.HERO_RIGHT_BLINK)) },
     hold: sprite(hero.HERO_HOLD),
     collapsed: sprite(rotateCW(hero.HERO_DOWN)),
   };
@@ -71,11 +95,13 @@ function build() {
   const knightUp = [creatures.KNIGHT_UP, creatures.KNIGHT_UP_STEP];
   const knightRight = [creatures.KNIGHT_RIGHT, creatures.KNIGHT_RIGHT_STEP];
   const fumble = (arts: Art[]) => arts.map((a) => recolor(a, KNIGHT_TO_FUMBLETON));
+  const kid = (colors: Record<string, string>) => blinker(recolor(creatures.KID, colors), recolor(creatures.KID_BLINK, colors));
 
   const enemies = {
     jellop: [sprite(creatures.JELLOP_A), sprite(creatures.JELLOP_B)],
     flitter: [sprite(creatures.FLITTER_A), sprite(creatures.FLITTER_B)],
     knight: facings(knightDown, knightUp, knightRight),
+    knightGlance: glances(),
     spitbug: facings([creatures.SPITBUG_DOWN], [creatures.SPITBUG_UP], [creatures.SPITBUG_RIGHT]),
     clank: facings(
       [proc.clank("down", false), proc.clank("down", true)],
@@ -86,35 +112,42 @@ function build() {
   };
 
   const npcs = {
-    nana: sprite(creatures.NANA),
-    ribbit: sprite(creatures.RIBBIT),
+    nana: { still: sprite(creatures.NANA), glint: [sprite(creatures.NANA_GLINT_A), sprite(creatures.NANA_GLINT_B)] },
+    haggleby: blinker(creatures.HAGGLEBY, creatures.HAGGLEBY_BLINK),
     ghost: [sprite(creatures.GHOST_A), sprite(creatures.GHOST_B)],
     banjo: facings([creatures.BANJO_DOWN], [creatures.BANJO_UP], [creatures.BANJO_RIGHT, creatures.BANJO_RIGHT_STEP]),
+    banjoBlink: {
+      down: sprite(creatures.BANJO_DOWN_BLINK),
+      right: sprite(creatures.BANJO_RIGHT_BLINK),
+      left: sprite(flipX(creatures.BANJO_RIGHT_BLINK)),
+    },
     fumbleton: facings(fumble(knightDown), fumble(knightUp), fumble(knightRight)),
-    mossbeard: sprite(creatures.MOSSBEARD),
-    pinch: [sprite(creatures.PINCH), sprite(flipX(creatures.PINCH))],
+    fumbletonGlance: glances(KNIGHT_TO_FUMBLETON),
+    mossbeard: blinker(creatures.MOSSBEARD, creatures.MOSSBEARD_BLINK),
+    pinch: sprite(creatures.PINCH),
     stout: facings(
       [recolor(creatures.KNIGHT_DOWN, KNIGHT_TO_STOUT)],
       [recolor(creatures.KNIGHT_UP, KNIGHT_TO_STOUT)],
       [recolor(creatures.KNIGHT_RIGHT, KNIGHT_TO_STOUT)],
     ),
-    mallard: sprite(creatures.MALLARD),
+    stoutGlance: glances(KNIGHT_TO_STOUT),
+    mallard: blinker(creatures.MALLARD, creatures.MALLARD_BLINK),
     duckling: {
       right: [sprite(creatures.DUCKLING_A), sprite(creatures.DUCKLING_B)],
       left: [sprite(flipX(creatures.DUCKLING_A)), sprite(flipX(creatures.DUCKLING_B))],
     },
-    pidge: [sprite(creatures.PIDGE), sprite(flipX(creatures.PIDGE))],
-    marigold: sprite(creatures.MARIGOLD),
+    pidge: blinker(creatures.PIDGE, creatures.PIDGE_BLINK),
+    marigold: blinker(creatures.MARIGOLD, creatures.MARIGOLD_BLINK),
     bellwether: sprite(creatures.BELLWETHER),
-    bunnies: {
-      tilly: sprite(recolor(creatures.BUNNY, BUNNIES.tilly)),
-      bo: sprite(recolor(creatures.BUNNY, BUNNIES.bo)),
-      pip: sprite(recolor(creatures.BUNNY, BUNNIES.pip)),
-      fern: sprite(recolor(creatures.BUNNY, BUNNIES.fern)),
+    kids: {
+      tilly: kid(KIDS.tilly),
+      bo: kid(KIDS.bo),
+      pip: kid(KIDS.pip),
+      fern: kid(KIDS.fern),
     },
-    bun: sprite(creatures.BUN),
-    hopsworth: sprite(recolor(creatures.RIBBIT, RIBBIT_TO_HOPSWORTH)),
-    ott: sprite(creatures.OTT),
+    bun: blinker(creatures.BUN, creatures.BUN_BLINK),
+    hopsworth: blinker(creatures.HOPSWORTH, creatures.HOPSWORTH_BLINK),
+    ott: blinker(creatures.OTT, creatures.OTT_BLINK),
   };
 
   const items = {

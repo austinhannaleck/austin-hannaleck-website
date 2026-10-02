@@ -65,7 +65,7 @@ export function itemGetPages(item: ItemId, amount = 0): string[] {
       return ["You got Mossbeard's Reply! It's a little bit muddy. Take it to Marigold, in Fernwhistle."];
     case "ring":
       return [
-        "You found the Mayor's Ring! It's gold, and a little bit fluffy.",
+        "You found the Mayor's Ring! It's gold, and a little bit soggy.",
         "Better take it back to Mayor Bellwether, out on the pier.",
       ];
   }
@@ -73,12 +73,12 @@ export function itemGetPages(item: ItemId, amount = 0): string[] {
 
 export const BED_NO_PAGES = ["Adventure waits for no one. Well, except Nana. Adventure waits for Nana."];
 export const WARES_PAGES = [`HEART CONTAINER. Barely used. ${SHOP_HEART_PRICE} gems.`];
-export const WARES_NO_PAGES = ["You set it back down, carefully. Ribbit looks a little sad about it."];
+export const WARES_NO_PAGES = ["You set it back down, carefully. Haggleby looks a little sad about it."];
 export const WARES_SOLD_PAGES = ["Just a dusty, heart-shaped outline on the counter."];
 export const BELL_LINES = [
-  ["Ribbit! I'm RIGHT here."],
-  ["Ribbit. You only have to ring it once, friend."],
-  ["...Ribbit? Oh! A customer! Ribbit ribbit!"],
+  ["I'm RIGHT here. I'm always right here."],
+  ["You only have to ring it once, friend."],
+  ["...Hm? Oh! A customer! A real live customer!"],
 ];
 
 export const BUN_PAGES = ["You eat the bun. It's still warm, somehow. You feel much better!"];
@@ -102,8 +102,8 @@ export function npcDialog(state: GameState, npc: Npc): Dialog {
       return nanaDialog(state);
     case "banjo":
       return banjoDialog(state);
-    case "ribbit":
-      return ribbitDialog(state);
+    case "haggleby":
+      return hagglebyDialog(state);
     case "moanica":
       return makeDialog(
         [
@@ -147,7 +147,7 @@ function fumbletonDialog(state: GameState): Dialog {
   );
 }
 
-// Mossbeard: the retired keeper of Bramblekeep's gate, a mole.
+// Mossbeard: the retired keeper of Bramblekeep's gate.
 // The Gate Key is used up at the gate, so holding it and having found it
 // aren't the same thing. Mossbeard and Nana care about the second.
 function foundGateKey(state: GameState): boolean {
@@ -158,16 +158,16 @@ function mossbeardDialog(state: GameState): Dialog {
   if (state.flags.has(flags.letter)) {
     return makeDialog(
       [
-        "A letter? For ME? Nobody writes to moles. We're very hard to find. That's the whole point.",
+        "A letter? For ME? Nobody writes to me. I'm very hard to find. That's the whole point of retiring.",
         "...It's from my little sister, Marigold! She lives in Fernwhistle. Not a peep from her since they jammed that bridge.",
-        "She says she misses me, and I'm to eat more worms. Hmph. Typical. Here, take her my reply. I'd go myself, but I'm retired. From walking.",
+        "She says she misses me, and I'm to eat more greens. Hmph. Typical. Here, take her my reply. I'd go myself, but I'm retired. From walking.",
       ],
       { speaker: "Mossbeard", then: "takeReply" },
     );
   }
   if (state.flags.has(flags.reply)) {
     return makeDialog(
-      ["Go on, take that to Marigold, over in Fernwhistle. Tell her I'm eating plenty of worms. Don't tell her I'm not."],
+      ["Go on, take that to Marigold, over in Fernwhistle. Tell her I'm eating plenty of greens. Don't tell her I'm not."],
       { speaker: "Mossbeard" },
     );
   }
@@ -186,7 +186,7 @@ function mossbeardDialog(state: GameState): Dialog {
   if (foundGateKey(state)) {
     return makeDialog(
       [
-        "My key! You found it! I'd hug you, but I'm a mole. We don't do that. We dig.",
+        "My key! You found it! I'd hug you, but I'm retired. From hugging.",
         "The gate is north of Puddlebrook, between the owl statues. Give it a good shove. It sticks.",
       ],
       { speaker: "Mossbeard" },
@@ -194,7 +194,7 @@ function mossbeardDialog(state: GameState): Dialog {
   }
   return makeDialog(
     [
-      "Eh? Who's there? Speak up, I'm a mole. Name's Mossbeard, keeper of the Bramblekeep gate. Retired keeper. Very retired.",
+      "Eh? Who's there? Speak up, my ears aren't what they were. Name's Mossbeard, keeper of the Bramblekeep gate. Retired keeper. Very retired.",
       "When Thornback's goons came marching through, I ran. Dropped the gate key somewhere down in the Hollow.",
       "That's the old cave in Thornthicket, west of here. Bats in there. I hate bats. They hate me. It's mutual.",
       "Find the key and the gate's all yours. Bring it back if you like. Or don't. I'm retired.",
@@ -203,7 +203,7 @@ function mossbeardDialog(state: GameState): Dialog {
   );
 }
 
-// Cap'n Pinch: a retired pirate crab with a treasure he won't swim for.
+// Cap'n Pinch: a retired pirate with a treasure he won't swim for.
 function pinchDialog(state: GameState): Dialog {
   if (state.inventory.owned.has("flippers") && !state.flags.has(flags.sunken("overworld:2,2", 4, 9))) {
     return makeDialog(
@@ -226,7 +226,7 @@ function pinchDialog(state: GameState): Dialog {
   return makeDialog(
     [
       "Arr! Cap'n Pinch, retired. Retired from what, ye ask? Pinching, mostly.",
-      "See that wee island? There's treasure on it. I'd fetch it meself, but I'm a crab of principle: no swimming on weekdays.",
+      "See that wee island? There's treasure on it. I'd fetch it meself, but I'm a pirate of principle: no swimming on weekdays.",
       "If only ye had some way to trade places with that shiny crystal out there. Arr. Come back if ye find one.",
     ],
     { speaker: "Cap'n Pinch" },
@@ -238,7 +238,7 @@ function nanaDialog(state: GameState): Dialog {
     return makeDialog(
       [
         "You brought the Sunstone home! The whole village is glowing. Even Banjo, a little.",
-        "And did you feel that rumble? Ribbit says the old Fernwhistle drawbridge finally came down, out east past Eastfield.",
+        "And did you feel that rumble? Haggleby says the old Fernwhistle drawbridge finally came down, out east past Eastfield.",
         "Those poor folks have been cut off for months. Go on, pop over and say hello. You've earned an adventure that isn't dangerous, dear.",
       ],
       { speaker: "Nana Shellby" },
@@ -247,7 +247,7 @@ function nanaDialog(state: GameState): Dialog {
   if (!state.flags.has(flags.nanaSword)) {
     return makeDialog(
       [
-        "Oh! You're finally up. Took you long enough. I've been awake since dawn. Well, since the dawn before last. I'm a tortoise.",
+        "Oh! You're finally up. Took you long enough. I've been up since dawn. Well, since the dawn before last. Sleep is for the young, dear.",
         "The Sunstone's gone missing from the village shrine! Last night I saw a big spiky something scuttle off toward Bramblekeep with it.",
         "I'd go get it back myself, but at my speed I'd arrive sometime next spring. Take Grandpa Shellby's old sword. Cut through those bushes and head north.",
       ],
@@ -270,7 +270,7 @@ function nanaDialog(state: GameState): Dialog {
     );
   }
   return makeDialog(
-    ["Is that a Switcheroo? Goodness. In my day we walked everywhere. Uphill. Both ways. Inside a shell."],
+    ["Is that a Switcheroo? Goodness. In my day we walked everywhere. Uphill. Both ways. In the snow."],
     { speaker: "Nana Shellby" },
   );
 }
@@ -292,24 +292,24 @@ function banjoDialog(state: GameState): Dialog {
   return makeDialog([randomPick(state, BANJO_IDLE)], { speaker: "Banjo" });
 }
 
-function ribbitDialog(state: GameState): Dialog {
+function hagglebyDialog(state: GameState): Dialog {
   if (state.flags.has(flags.shopHeart)) {
-    return makeDialog(["Sold out! Ribbit. I really need to order more inventory."], { speaker: "Ribbit" });
+    return makeDialog(["Sold out! I really must order more stock. I say that every week."], { speaker: "Haggleby" });
   }
   return makeDialog(
     [
-      "Ribbit! Welcome to Ribbit's Wares, the finest shop in Puddlebrook. Also the only shop in Puddlebrook.",
+      "Welcome, welcome! Haggleby's Wares, the finest shop in Puddlebrook. Also the only shop in Puddlebrook.",
       `Today's special: one Heart Container, barely used! Yours for ${SHOP_HEART_PRICE} gems. Deal?`,
     ],
     {
-      speaker: "Ribbit",
+      speaker: "Haggleby",
       choice: {
         options: ["Buy it", "No thanks"],
         onYes: "buyHeart",
-        noPages: ["Ribbit. Your loss, friend. Probably."],
+        noPages: ["Your loss, friend. Probably."],
       },
     },
   );
 }
 
-export const SHOP_TOO_POOR_PAGES = ["You're a little short, friend. Come back when your pockets jingle. Ribbit."];
+export const SHOP_TOO_POOR_PAGES = ["You're a little short, friend. Come back when your pockets jingle."];

@@ -33,7 +33,7 @@ export function townsfolkDialog(state: GameState, npc: Npc): Dialog {
       return makeDialog(
         [
           "Welcome to the Snoozing Snail, Fernwhistle's finest inn! Also its only inn.",
-          "Beds are free while we celebrate the bridge. Pick any one you like and have a nap. Croak.",
+          "Beds are free while we celebrate the bridge. Pick any one you like and have a nap. I might join you.",
         ],
         { speaker: "Hopsworth" },
       );
@@ -115,21 +115,21 @@ function mallardDialog(state: GameState): Dialog {
 function pidgeDialog(state: GameState): Dialog {
   const speaker = "Postmaster Pidge";
   if (state.flags.has(flags.mailDelivered)) {
-    return makeDialog(["Coo! The mail's moving again, and it's all thanks to you. Business is booming. Well. Business is cooing."], { speaker });
+    return makeDialog(["The mail's moving again, and it's all thanks to you! Business is booming. Well. Business is sorting itself out."], { speaker });
   }
   if (state.flags.has(flags.reply)) {
     return makeDialog(
-      ["A reply from Mossbeard? Coo! Don't give it to me, dear. Take it to Marigold! She lives up on the hill, east of the Mayor's Hall."],
+      ["A reply from Mossbeard? Goodness! Don't give it to me, dear. Take it to Marigold! She lives up on the hill, east of the Mayor's Hall."],
       { speaker },
     );
   }
   if (state.flags.has(flags.letter)) {
-    return makeDialog(["Willow Crossing is out past the gorge, south of Puddlebrook. Coo. Mind you don't get that letter wet."], { speaker });
+    return makeDialog(["Willow Crossing is out past the gorge, south of Puddlebrook. Mind you don't get that letter wet."], { speaker });
   }
   return makeDialog(
     [
-      "Coo! Welcome to the Fernwhistle Post Office! With the bridge stuck up for months, the mail's been stuck right here with it.",
-      "Look at this one: 'Mossbeard, Willow Crossing.' That's way out past the gorge! Coo... I don't suppose you're headed that way?",
+      "Post! Post for... oh! A visitor! Welcome to the Fernwhistle Post Office! With the bridge stuck up for months, the mail's been stuck right here with it.",
+      "Look at this one: 'Mossbeard, Willow Crossing.' That's way out past the gorge! Hmm... I don't suppose you're headed that way?",
     ],
     { speaker, then: "takeLetter" },
   );
@@ -139,7 +139,7 @@ function marigoldDialog(state: GameState): Dialog {
   const speaker = "Marigold";
   if (state.flags.has(flags.mailDelivered)) {
     return makeDialog(
-      ["My big brother and I are pen pals again! At our age! Isn't that something.", "Next time you see him, tell him to eat his worms."],
+      ["My big brother and I are pen pals again! At our age! Isn't that something.", "Next time you see him, tell him to eat his greens."],
       { speaker },
     );
   }
@@ -155,7 +155,7 @@ function marigoldDialog(state: GameState): Dialog {
   }
   if (state.flags.has(flags.letter)) {
     return makeDialog(
-      ["Is that letter for Mossbeard? He's my big brother! Take it to him, quick, before he digs himself off somewhere new."],
+      ["Is that letter for Mossbeard? He's my big brother! Take it to him, quick, before he retires from something else."],
       { speaker },
     );
   }
@@ -173,7 +173,7 @@ function marigoldDialog(state: GameState): Dialog {
 // ---------------------------------------------------------------------------
 const HIDE_HINTS: Record<string, string> = {
   bo: "Bo likes to hide behind tall things. He says the best spot in town is wherever it's breezy.",
-  pip: "Pip always hides behind something BIG. His ears always stick out, though.",
+  pip: "Pip always hides behind something BIG. His hair always sticks up over the top, though.",
   fern: "Fern goes wherever it smells like icing.",
 };
 
@@ -209,13 +209,13 @@ function tillyDialog(state: GameState): Dialog {
 
 const SPOTTED: Record<string, string[]> = {
   bo: ["Aww, you found me! Nobody ever looks behind the windmill.", "Okay, okay. I'm going back to the square."],
-  pip: ["How did you know I was back here? ...Was it the ears? It's always the ears.", "Fine. I'm going back to the square."],
+  pip: ["How did you know I was back here? ...Was it the hair? It's always the hair.", "Fine. I'm going back to the square."],
   fern: ["Mmmf! You found me. I was hiding. Also eating. Mostly eating.", "Don't tell Bun! I'm going back to the square."],
 };
 
 const HOME_AGAIN: Record<string, string> = {
   bo: "Next time I'm hiding INSIDE the windmill.",
-  pip: "I'm getting a hat. A big one. For the ears.",
+  pip: "I'm getting a hat. A big one. For the hair.",
   fern: "Do I have icing on my face? ...Where?",
 };
 
@@ -235,12 +235,12 @@ function hiderDialog(state: GameState, npc: Npc): Dialog {
 function mayorDialog(state: GameState): Dialog {
   const speaker = "Mayor Bellwether";
   if (state.flags.has(flags.ringReturned)) {
-    return makeDialog(["Fernwhistle is open for business! Bridge down, ring on. What a baaa-utiful day."], { speaker });
+    return makeDialog(["Fernwhistle is open for business! Bridge down, ring on. What a splendid, splendid day."], { speaker });
   }
   if (state.flags.has(flags.ring)) {
     return makeDialog(
       [
-        "My ring! You found my ring! Baaa-rilliant!",
+        "My ring! You found my ring! Splendid! SPLENDID!",
         "As mayor of Fernwhistle, I hereby award you... um... this! The town keeps a Heart Container for emergencies, and this was definitely an emergency.",
       ],
       { speaker, then: "returnRing" },
@@ -254,7 +254,7 @@ function mayorDialog(state: GameState): Dialog {
   }
   return makeDialog(
     [
-      "Baaa-d news, I'm afraid. When that drawbridge came crashing down, I jumped so high my ring flew clean off! Plop! Right off the end of this pier.",
+      "Ahem! Bad news, I'm afraid. When that drawbridge came crashing down, I jumped so high my ring flew clean off! Plop! Right off the end of this pier.",
       "It's the official ring of the Mayor of Fernwhistle. I can't very well be mayor without it. If only somebody around here could swim!",
     ],
     { speaker },
@@ -270,7 +270,7 @@ function bunDialog(state: GameState): Dialog {
     "Have a bun! It's on the house. Please. I have SO many buns.",
   ];
   if (HIDERS.includes("fern") && !state.flags.has(flags.found("fern"))) {
-    pages.push("Oh, and if you're looking for a little bunny who smells of icing, I haven't seen her. Definitely not behind the flour sacks.");
+    pages.push("Oh, and if you're looking for a little girl who smells of icing, I haven't seen her. Definitely not behind the flour sacks.");
   }
   return makeDialog(pages, { speaker: "Bun", then: "snack" });
 }
@@ -282,7 +282,7 @@ function ottDialog(state: GameState): Dialog {
   ];
   pages.push(
     state.inventory.owned.has("flippers")
-      ? "Nice flippers. I've got a pair myself. I call them feet."
+      ? "Nice flippers. I tried a pair once. The fish laughed at me."
       : "Fancy a swim? Ask a duck. Ducks know everything there is to know about swimming. And bread.",
   );
   return makeDialog(pages, { speaker: "Ott" });

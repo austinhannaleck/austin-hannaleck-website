@@ -15,6 +15,10 @@ const DUCKLING_FLEE = 1.15;
 // How close you can get before a duckling bolts.
 const DUCKLING_WARY = 44;
 
+// How close you can get before a villager who stays put turns to look at
+// you. (The renderer uses it too: a guard stops glancing about.)
+export const NOTICE_DISTANCE = 40;
+
 export function updateNpcs(state: GameState): void {
   const heroCenter = centerOf(state.hero);
   for (const npc of state.npcs) {
@@ -24,7 +28,7 @@ export function updateNpcs(state: GameState): void {
       updateRunaway(state, npc);
     } else if (npc.wanders) {
       wander(state, npc, 0.7);
-    } else if (distance(centerOf(npc), heroCenter) < 40) {
+    } else if (distance(centerOf(npc), heroCenter) < NOTICE_DISTANCE) {
       const c = centerOf(npc);
       npc.facing = directionOfVector(heroCenter.x - c.x, heroCenter.y - c.y);
     }

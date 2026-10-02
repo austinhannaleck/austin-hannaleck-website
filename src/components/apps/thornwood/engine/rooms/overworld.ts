@@ -43,7 +43,7 @@ export const OVERWORLD_ROOMS: Record<string, RoomDef> = {
       { kind: "house", col: 2, row: 1, w: 3, h: 2, roof: 0xd9574a, wall: 0xf3e3c3 },
       { kind: "house", col: 11, row: 1, w: 3, h: 2, roof: 0x4f9e6b, wall: 0xf0d8a8 },
     ],
-    // Front doors: Nana's house on the left, Ribbit's shop on the right.
+    // Front doors: Nana's house on the left, Haggleby's shop on the right.
     warps: {
       "3,2": { roomId: "interior:0,0", col: 7.5, row: 9, facing: "up" },
       "12,2": { roomId: "interior:1,0", col: 7.5, row: 9, facing: "up" },
@@ -218,7 +218,7 @@ export const OVERWORLD_ROOMS: Record<string, RoomDef> = {
       { kind: "spitbug", col: 13, row: 2 },
     ],
     signs: {
-      "11,2": ["WILLOW CROSSING. North: Puddlebrook. West: Thornthicket. East: the shore. Over the bridge: a grumpy mole."],
+      "11,2": ["WILLOW CROSSING. North: Puddlebrook. West: Thornthicket. East: the shore. Over the bridge: a grumpy old gatekeeper."],
     },
     chests: { "12,9": { contents: { item: "gems", amount: 20 } } },
   },
@@ -246,7 +246,7 @@ export const OVERWORLD_ROOMS: Record<string, RoomDef> = {
       { kind: "flitter", col: 11, row: 8 },
     ],
     signs: {
-      "9,6": ["THE HOLLOW. Bats inside. Also, according to a certain mole, a very important key. Probably."],
+      "9,6": ["THE HOLLOW. Bats inside. Also, according to a certain old gatekeeper, a very important key. Probably."],
     },
     warps: {
       "5,6": { roomId: "hollow:0,1", col: 7.5, row: 8, facing: "up" },

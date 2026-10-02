@@ -99,7 +99,9 @@ reads first.
   the doorway is open floor or a shutter. `world.test.ts` checks that edges line up.
 - Dungeon rooms use `music: "dungeon"`. The music system switches to the boss theme or the
   "danger" theme on its own during boss fights and shutter fights.
-- Defeated dungeon enemies stay defeated (`defeated:` flags), and a defeated boss never respawns.
+- Beaten enemies stay beaten unless their spawn has a `respawn` rule (`engine/respawn.ts`; the
+  default is `never`), and a beaten boss never comes back. An enemy that does come back shuts a
+  trap room's shutters again, and re-hides a hidden chest that hasn't been opened yet.
 
 ## Adding a new dungeon: checklist
 

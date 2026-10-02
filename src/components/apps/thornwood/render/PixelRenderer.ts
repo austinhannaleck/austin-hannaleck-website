@@ -1,7 +1,8 @@
-import { BOSS_NAMES, ENEMY_STATS } from "../engine/actors";
+import { ENEMY_STATS } from "../engine/actors";
 import { areaCameraFor } from "../engine/camera";
+import { centerOf, distance } from "../engine/collision";
 import { vectorOf } from "../engine/directions";
-import { swordAim } from "../engine/hero";
+import { swingSegmentIndex, swordAim } from "../engine/hero";
 import { flags as flagNames, initialTiles, pegRaised } from "../engine/room";
 import {
   DROP_BLINK_FRAMES,
@@ -23,6 +24,7 @@ import {
   type Point,
   type Prop,
 } from "../engine/types";
+import { NOTICE_DISTANCE } from "../engine/villagers";
 import { ROOMS, allRoomIds, areaOf, roomOrigin, roomSize, tileKey } from "../engine/world";
 import type { PauseFocus } from "../ui/inventory";
 import type { MapView } from "../ui/map";
@@ -33,7 +35,6 @@ import {
   HUD_H,
   SCREEN_W,
   drawBanner,
-  drawBossBar,
   drawBossIntro,
   drawDialog,
   drawGameOver,
@@ -42,7 +43,7 @@ import {
   drawTitle,
   drawVictory,
 } from "./screens";
-import { getSprites, type Sprites } from "./sprites";
+import { getSprites, type Blinker, type Sprites } from "./sprites";
 import { COLORS, buildRoomArt, drawGroundAnimation, drawbridgeDeck, type RoomArt } from "./tiles";
 
 // Draws a GameState as a 16-bit-style screen: 256 pixels wide (the SNES's
@@ -65,6 +66,8 @@ export type RenderUi = {
 };
 
 type Sorted = { sortY: number; draw: () => void };
+// Something in the hero's hand, placed for this frame.
+type Held = { sprite: Sprite; x: number; y: number; behind: boolean };
 
 const DYNAMIC = new Set(["b", "p", "C", "L", "B", "G", "S", "D", "r", "u", "P", "Q", "Y"]);
 const SPIN_ORDER: Direction[] = ["down", "left", "up", "right"];
@@ -82,6 +85,19 @@ function hex(color: number): string {
 
 function smooth(t: number): number {
   return t * t * (3 - 2 * t);
+}
+
+// Now and then, for a moment, eyes shut. `seed` staggers it, so a crowd
+// doesn't blink all at once.
+function blinking(time: number, seed: number): boolean {
+  return (time + seed * 1.37) % 4 < 0.12;
+}
+
+// Someone keeping watch looks around: ahead, left, ahead, right, a beat
+// each.
+function glance(beat: number): "left" | "right" | null {
+  const phase = Math.floor(beat) % 4;
+  return phase === 1 ? "left" : phase === 3 ? "right" : null;
 }
 
 export class PixelRenderer {
@@ -167,10 +183,9 @@ export class PixelRenderer {
       ctx.drawImage(this.field, sx, HUD_H + sy);
     }
 
-    drawHud(ctx, state, this.sprites);
-
     const boss = state.enemies.find((e) => ENEMY_STATS[e.kind].boss && e.mode !== "dying");
-    if (boss && state.status === "playing") drawBossBar(ctx, BOSS_NAMES[ENEMY_STATS[boss.kind].boss!].name, boss.hp, boss.maxHp, HUD_H);
+    drawHud(ctx, state, this.sprites, boss);
+
     if (this.banner && !boss) drawBanner(ctx, this.banner.name, time - this.banner.startedAt, HUD_H);
     if (ui.bossIntro && state.status === "playing") drawBossIntro(ctx, ui.bossIntro.boss, time - ui.bossIntro.startedAt, HUD_H);
     if (state.status === "playing") drawDialog(ctx, state, HUD_H, time);
@@ -398,7 +413,7 @@ export class PixelRenderer {
     const hero = state.hero;
     list.push({ sortY: o.y + hero.y + hero.h, draw: () => this.drawHero(state, o, time) });
     for (const e of state.enemies) list.push({ sortY: o.y + e.y + e.h, draw: () => this.drawEnemy(e, o, time) });
-    for (const npc of state.npcs) list.push({ sortY: o.y + npc.y + npc.h, draw: () => this.drawNpc(npc, o, time) });
+    for (const npc of state.npcs) list.push({ sortY: o.y + npc.y + npc.h, draw: () => this.drawNpc(state, npc, o, time) });
     for (const prop of state.props) list.push({ sortY: o.y + prop.y + prop.h, draw: () => this.drawProp(prop, o, time) });
     for (const d of state.drops) list.push({ sortY: o.y + d.y + d.h, draw: () => this.drawDrop(d, o, time) });
     // Wares for sale sit on top of the shop counter until they're bought.
@@ -463,28 +478,28 @@ export class PixelRenderer {
       }
       case "spin":
         facing = SPIN_ORDER[Math.floor((hero.actionFrame / SPIN_FRAMES) * 8) % 4];
-        body = sp.hero.attack[facing][0];
+        body = sp.hero.swing[facing][2];
         break;
       case "swing":
+        // The arm follows the blade around its arc.
+        body = sp.hero.swing[facing][swingSegmentIndex(hero.actionFrame)];
+        break;
       case "charge":
       case "cast":
-        body = sp.hero.attack[facing][0];
+        // Arm out in front, at the end of the swing.
+        body = sp.hero.swing[facing][2];
         break;
       default:
         if (hero.holding) body = sp.hero.hold;
+        else if (!hero.moving && facing !== "up" && blinking(time, 0)) body = sp.hero.blink[facing];
         else body = sp.hero.walk[facing][hero.moving ? Math.floor(hero.walkFrames / 7) % 4 : 0];
     }
 
-    const blade = this.bladeFor(state, cx, footY - 6);
-    if (blade && blade.behind) this.blit(blade.sprite, blade.x, blade.y);
+    const held = [this.bladeFor(state, cx, footY - 6), hero.action === "cast" ? this.wandFor(facing, cx, footY) : null];
+    for (const h of held) if (h?.behind) this.blit(h.sprite, h.x, h.y);
     this.stand(body, cx, footY, flash);
-    if (blade && !blade.behind) this.blit(blade.sprite, blade.x, blade.y);
+    for (const h of held) if (h && !h.behind) this.blit(h.sprite, h.x, h.y);
 
-    if (hero.action === "cast") {
-      const wand = sp.wand[facing];
-      const v = vectorOf(facing);
-      this.blit(wand, cx + v.x * 10 - wand.w / 2, footY - 8 + v.y * 8 - wand.h / 2);
-    }
     if (hero.action === "charge" && hero.actionFrame >= 40 && Math.floor(time * 12) % 2 === 0) {
       const aim = swordAim(hero);
       if (aim) this.blit(sp.items.sparkle, o.x + aim.box.x + aim.box.w / 2 + aim.dir.x * 6 - 2, o.y + aim.box.y + aim.box.h / 2 + aim.dir.y * 6 - 2);
@@ -562,7 +577,7 @@ export class PixelRenderer {
   }
 
   // Picks the sword sprite for where the blade is pointing this frame.
-  private bladeFor(state: GameState, cx: number, cy: number): { sprite: Sprite; x: number; y: number; behind: boolean } | null {
+  private bladeFor(state: GameState, cx: number, cy: number): Held | null {
     const hero = state.hero;
     const sw = this.sprites.sword;
     let dir: Point;
@@ -583,6 +598,15 @@ export class PixelRenderer {
     else if (dir.y > 0) sprite = dir.x > 0 ? sw.downRight : sw.downLeft;
     else sprite = dir.x > 0 ? sw.upRight : sw.upLeft;
     return { sprite, x: center.x - sprite.w / 2, y: center.y - sprite.h / 2, behind: dir.y < -0.3 };
+  }
+
+  // The Switcheroo, held out at arm's length: at hand height to the side,
+  // low in front, and (facing up) behind your head, like the sword.
+  private wandFor(facing: Direction, cx: number, footY: number): Held {
+    const sprite = this.sprites.wand[facing];
+    const v = vectorOf(facing);
+    const y = v.y === 0 ? footY - 6 : footY - 8 + v.y * 8;
+    return { sprite, x: cx + v.x * 10 - sprite.w / 2, y: y - sprite.h / 2, behind: facing === "up" };
   }
 
   private drawHeld(item: NonNullable<GameState["hero"]["holding"]>, cx: number, bottom: number, time: number): void {
@@ -631,9 +655,12 @@ export class PixelRenderer {
         s = sp.flitter[Math.floor(e.anim / (moving ? 4 : 9)) % 2];
         lift = 7 + Math.round(Math.sin(e.anim * 0.1) * 2);
         break;
-      case "knight":
-        s = sp.knight[e.facing][moving ? Math.floor(e.anim / 8) % 2 : 0];
+      case "knight": {
+        // Standing about, it looks this way and that.
+        const look = e.mode === "idle" && e.stunFrames === 0 && e.facing === "down" ? glance(e.anim / 16) : null;
+        s = look ? sp.knightGlance[look] : sp.knight[e.facing][moving ? Math.floor(e.anim / 8) % 2 : 0];
         break;
+      }
       case "spitbug":
         s = sp.spitbug[e.facing][0];
         break;
@@ -669,17 +696,33 @@ export class PixelRenderer {
     }
   }
 
-  private drawNpc(npc: Npc, o: Point, time: number): void {
+  // A villager's eyes, open or (now and then) blinking.
+  private face(b: Blinker, npc: Npc, time: number): Sprite {
+    return blinking(time, npc.id) ? b.shut : b.open;
+  }
+
+  // Which way a guard standing watch is glancing, if any: only while
+  // facing ahead, and not once you're close enough to have their attention.
+  private glanceOf(state: GameState, npc: Npc, beat: number): "left" | "right" | null {
+    if (npc.facing !== "down" || distance(centerOf(npc), centerOf(state.hero)) < NOTICE_DISTANCE) return null;
+    return glance(npc.anim / beat);
+  }
+
+  private drawNpc(state: GameState, npc: Npc, o: Point, time: number): void {
     const sp = this.sprites.npcs;
     const cx = o.x + npc.x + npc.w / 2;
     const footY = o.y + npc.y + npc.h;
     switch (npc.kind) {
-      case "nana":
-        this.stand(sp.nana, cx, footY - (Math.floor(time * 1.5) % 2));
+      case "nana": {
+        // Every so often the light catches her glasses.
+        const t = (time + npc.id) % 4.5;
+        const s = t < 0.08 ? sp.nana.glint[0] : t < 0.16 ? sp.nana.glint[1] : sp.nana.still;
+        this.stand(s, cx, footY - (Math.floor(time * 1.5) % 2));
         break;
-      case "ribbit": {
+      }
+      case "haggleby": {
         const hop = npc.talkFrames > 0 ? Math.round(Math.abs(Math.sin(npc.talkFrames * 0.35)) * 4) : 0;
-        this.stand(sp.ribbit, cx, footY - hop);
+        this.stand(this.face(sp.haggleby, npc, time), cx, footY - hop);
         break;
       }
       case "moanica":
@@ -689,29 +732,37 @@ export class PixelRenderer {
         const walking = npc.vx !== 0 || npc.vy !== 0;
         const frames = sp.banjo[npc.facing];
         const hop = npc.talkFrames > 0 ? Math.round(Math.abs(Math.sin(time * 14)) * 2) : 0;
-        this.stand(frames[walking ? Math.floor(npc.anim / 6) % frames.length : 0], cx, footY - hop);
+        let s = frames[walking ? Math.floor(npc.anim / 6) % frames.length : 0];
+        if (!walking && npc.facing !== "up" && blinking(time, npc.id)) s = sp.banjoBlink[npc.facing];
+        this.stand(s, cx, footY - hop);
         break;
       }
-      case "fumbleton":
-        this.stand(sp.fumbleton[npc.facing][0], cx + (Math.floor(time * 20) % 2), footY);
+      case "fumbleton": {
+        // Trembling in his bush, and glancing about, nervously.
+        const look = this.glanceOf(state, npc, 12);
+        this.stand(look ? sp.fumbletonGlance[look] : sp.fumbleton[npc.facing][0], cx + (Math.floor(time * 20) % 2), footY);
         break;
+      }
       case "mossbeard": {
         // A sleepy sway, and a startled hop when you talk to him.
         const hop = npc.talkFrames > 30 ? 2 : 0;
-        this.stand(sp.mossbeard, cx + (Math.floor(time * 0.8) % 2), footY - hop);
+        this.stand(this.face(sp.mossbeard, npc, time), cx + (Math.floor(time * 0.8) % 2), footY - hop);
         break;
       }
       case "pinch":
-        // Crabs shuffle sideways, naturally.
-        this.stand(sp.pinch[Math.floor(time * 2) % 2], cx + Math.round(Math.sin(time * 1.5) * 2), footY);
+        // Rocking on his sea legs.
+        this.stand(sp.pinch, cx + Math.round(Math.sin(time * 1.5)), footY);
         break;
-      case "stout":
-        this.stand(sp.stout[npc.facing][0], cx, footY);
+      case "stout": {
+        // Keeping watch at the gate.
+        const look = this.glanceOf(state, npc, 40);
+        this.stand(look ? sp.stoutGlance[look] : sp.stout[npc.facing][0], cx, footY);
         break;
+      }
       case "mallard": {
-        // A contented little wiggle, and a flap when you talk to her.
+        // A contented little wiggle, and a bounce when you talk to her.
         const hop = npc.talkFrames > 0 ? Math.round(Math.abs(Math.sin(npc.talkFrames * 0.3)) * 3) : 0;
-        this.stand(sp.mallard, cx + (Math.floor(time * 1.2) % 2), footY - hop);
+        this.stand(this.face(sp.mallard, npc, time), cx + (Math.floor(time * 1.2) % 2), footY - hop);
         break;
       }
       case "duckling": {
@@ -724,11 +775,11 @@ export class PixelRenderer {
         break;
       }
       case "pidge":
-        // Pigeons can't keep their heads still.
-        this.stand(sp.pidge[Math.floor(time * 0.7 + npc.id) % 2], cx + (Math.floor(time * 4) % 2), footY);
+        // Up on his toes and down again: there's post to sort.
+        this.stand(this.face(sp.pidge, npc, time), cx, footY - (Math.floor(time * 2) % 2));
         break;
       case "marigold":
-        this.stand(sp.marigold, cx, footY - (npc.talkFrames > 30 ? 2 : Math.floor(time * 1.4) % 2));
+        this.stand(this.face(sp.marigold, npc, time), cx, footY - (npc.talkFrames > 30 ? 2 : Math.floor(time * 1.4) % 2));
         break;
       case "bellwether":
         this.stand(sp.bellwether, cx, footY - (npc.talkFrames > 0 ? Math.round(Math.abs(Math.sin(npc.talkFrames * 0.3)) * 3) : 0));
@@ -741,20 +792,20 @@ export class PixelRenderer {
         // hops when they're found.
         const idle = npc.kind === "tilly" ? Math.floor(time * 3) % 2 : 0;
         const hop = npc.talkFrames > 0 ? Math.round(Math.abs(Math.sin(npc.talkFrames * 0.35)) * 4) : idle;
-        this.stand(sp.bunnies[npc.kind], cx, footY - hop);
+        this.stand(this.face(sp.kids[npc.kind], npc, time), cx, footY - hop);
         break;
       }
       case "bun":
-        this.stand(sp.bun, cx, footY - (Math.floor(time * 1.5) % 2));
+        this.stand(this.face(sp.bun, npc, time), cx, footY - (Math.floor(time * 1.5) % 2));
         break;
       case "hopsworth": {
         const hop = npc.talkFrames > 0 ? Math.round(Math.abs(Math.sin(npc.talkFrames * 0.35)) * 4) : 0;
-        this.stand(sp.hopsworth, cx, footY - hop);
+        this.stand(this.face(sp.hopsworth, npc, time), cx, footY - hop);
         break;
       }
       case "ott":
         // Waiting for a bite.
-        this.stand(sp.ott, cx, footY - (Math.floor(time * 0.9) % 2));
+        this.stand(this.face(sp.ott, npc, time), cx, footY - (Math.floor(time * 0.9) % 2));
         break;
     }
   }

@@ -188,7 +188,7 @@ function still(img: HTMLCanvasElement, x: number, y: number, sortY: number): Fur
 
 const JAR_COLORS = ["#7ad87a", "#8cc4ff", "#e8a040", "#ff9cc8", "#dcb4ff"];
 
-// A row of stoppered jars: Ribbit's stock. (Mostly snacks. Mostly flies.)
+// A row of stoppered jars: Haggleby's stock. (Mostly snacks. Mostly pickles.)
 function jars(ctx: Painter, top: number, wx: number, wy: number, shelf: number): void {
   for (let i = 0; i < 3; i++) {
     const jx = 2 + i * 4 + Math.floor(hash(wx + i, wy + shelf, 75) * 2);

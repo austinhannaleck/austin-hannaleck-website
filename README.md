@@ -178,7 +178,7 @@ get there) all hinge on it.
 
 Puddlebrook's houses can be walked into: Nana's, with a bed you can nap
 in to refill your hearts, a bookshelf of silly books, and pots to smash;
-and Ribbit's shop, where you buy from behind the counter (and can ring
+and Haggleby's shop, where you buy from behind the counter (and can ring
 the service bell, to his annoyance).
 
 Beating Thornback shakes the whole forest, and the jammed drawbridge over
@@ -187,11 +187,11 @@ village cut off for months, with its own theme tune. It's one big room
 (six screens' worth) that the camera scrolls around with you instead of
 flipping screen to screen, with a windmill, a market square, a pier, a
 duck pond, five houses to walk into, and four side quests: catching Mama
-Mallard's runaway ducklings (they run), carrying the post to a mole and
-back, a game of hide and seek, and diving for the Mayor's ring. The
-ducklings earn you the Flippers: with them, deep water stops being a
-wall, and diving makes you untouchable for a moment and can turn up sunken
-treasure.
+Mallard's runaway ducklings (they run), carrying the post to a retired
+gatekeeper and back, a game of hide and seek, and diving for the Mayor's
+ring. The ducklings earn you the Flippers: with them, deep water stops
+being a wall, and diving makes you untouchable for a moment and can turn
+up sunken treasure.
 
 The pause screen is a classic subscreen: an item grid where you pick the
 tool on the item button, a gear panel (which also shows whatever you're

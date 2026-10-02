@@ -1,7 +1,8 @@
 import type { MusicTrack } from "../engine/world";
 import { MUSIC_LEVEL, audioGraph, whiteNoise } from "./context";
 
-// A little 16-bit-style sound chip and seven original themes.
+// A little 16-bit-style sound chip, seven original themes, and a few
+// stingers (short fanfares) for big moments.
 //
 // Each song is written as a melody (one token per eighth note: a note like
 // "F#5", "-" to hold, "." to rest) over a chord per bar. The bass line and
@@ -358,56 +359,212 @@ function playDrum(ctx: AudioContext, out: AudioNode, kind: string, start: number
 }
 
 // ---------------------------------------------------------------------------
-// The treasure fanfare
+// Stingers: short fanfares for big moments
 // ---------------------------------------------------------------------------
 
 // Each entry: [note, start in seconds, length in seconds].
 type Score = [string, number, number][];
 
-const FANFARE = {
-  // Three pickup notes, then a stepwise climb to a long, ringing high C.
-  lead: [
-    ["G4", 0, 0.09],
-    ["G4", 0.11, 0.09],
-    ["G4", 0.22, 0.09],
-    ["C5", 0.33, 0.38],
-    ["B4", 0.75, 0.11],
-    ["C5", 0.87, 0.11],
-    ["D5", 0.99, 0.11],
-    ["F5", 1.11, 0.38],
-    ["E5", 1.53, 0.11],
-    ["F5", 1.65, 0.11],
-    ["G5", 1.77, 0.11],
-    ["C6", 1.9, 1.3],
-  ] as Score,
-  harmony: [
-    ["E4", 0.33, 0.38],
-    ["G4", 0.33, 0.38],
-    ["A4", 1.11, 0.38],
-    ["C5", 1.11, 0.38],
-    ["E5", 1.9, 1.3],
-    ["G5", 1.9, 1.3],
-  ] as Score,
-  bass: [
-    ["C3", 0.33, 0.38],
-    ["F2", 1.11, 0.38],
-    ["G2", 1.53, 0.33],
-    ["C3", 1.9, 1.3],
-    ["C2", 1.9, 1.3],
-  ] as Score,
-  // A twinkle up the chord as the last note rings.
-  sparkle: [
-    ["C6", 2.05, 0.08],
-    ["E6", 2.13, 0.08],
-    ["G6", 2.21, 0.08],
-    ["C7", 2.29, 0.3],
-  ] as Score,
+// A burst of noise, for drums and cymbals: [start, length, gain, highpass].
+type Hit = [number, number, number, number];
+
+type Stinger = {
+  // When it's over and the music can come back, in seconds. Every note has
+  // finished by then (music.test.ts checks).
+  length: number;
+  parts: { voice: Voice; score: Score }[];
+  hits: Hit[];
 };
 
 const BRASS: Voice = { kind: "fm", ratio: 1, index: 2.2, decay: 0.3, gain: 0.15, release: 0.15, vibrato: 1 };
 const HORNS: Voice = { kind: "pulse", duty: 0.5, gain: 0.04, release: 0.2, cutoff: 2400 };
+const SOFT_HORNS: Voice = { kind: "pulse", duty: 0.25, gain: 0.03, release: 0.25 };
 const TUBA: Voice = { kind: "triangle", gain: 0.3, release: 0.2 };
 const BELL: Voice = { kind: "pulse", duty: 0.125, gain: 0.05, release: 0.25 };
+// The dungeon theme's bell, so its jingle sounds like it belongs there.
+const CHIME: Voice = { kind: "fm", ratio: 3.5, index: 1.6, decay: 0.4, gain: 0.11, release: 0.3 };
+
+// A snare roll that builds, a hit every 40ms.
+function snareRoll(start: number, count: number): Hit[] {
+  return Array.from({ length: count }, (_, i): Hit => [start + i * 0.04, 0.05, 0.04 + i * 0.012, 1800]);
+}
+
+export type StingerName = "treasure" | "puzzleSolved" | "bossDefeated";
+
+const STINGERS: Record<StingerName, Stinger> = {
+  // The treasure in a big chest, ceremonial: three pickup notes, then a
+  // stepwise climb to a long, ringing high C.
+  treasure: {
+    length: 3.2,
+    parts: [
+      {
+        voice: BRASS,
+        score: [
+          ["G4", 0, 0.09],
+          ["G4", 0.11, 0.09],
+          ["G4", 0.22, 0.09],
+          ["C5", 0.33, 0.38],
+          ["B4", 0.75, 0.11],
+          ["C5", 0.87, 0.11],
+          ["D5", 0.99, 0.11],
+          ["F5", 1.11, 0.38],
+          ["E5", 1.53, 0.11],
+          ["F5", 1.65, 0.11],
+          ["G5", 1.77, 0.11],
+          ["C6", 1.9, 1.3],
+        ],
+      },
+      {
+        voice: HORNS,
+        score: [
+          ["E4", 0.33, 0.38],
+          ["G4", 0.33, 0.38],
+          ["A4", 1.11, 0.38],
+          ["C5", 1.11, 0.38],
+          ["E5", 1.9, 1.3],
+          ["G5", 1.9, 1.3],
+        ],
+      },
+      {
+        voice: TUBA,
+        score: [
+          ["C3", 0.33, 0.38],
+          ["F2", 1.11, 0.38],
+          ["G2", 1.53, 0.33],
+          ["C3", 1.9, 1.3],
+          ["C2", 1.9, 1.3],
+        ],
+      },
+      // A twinkle up the chord as the last note rings.
+      {
+        voice: BELL,
+        score: [
+          ["C6", 2.05, 0.08],
+          ["E6", 2.13, 0.08],
+          ["G6", 2.21, 0.08],
+          ["C7", 2.29, 0.3],
+        ],
+      },
+    ],
+    // A snare roll building into a cymbal crash on the high C.
+    hits: [...snareRoll(1.53, 9), [1.9, 1.4, 0.14, 5000]],
+  },
+
+  // A puzzle solved: fourths climbing over the dominant and landing on a
+  // bright D major, the dungeon's D minor lifting for a moment.
+  puzzleSolved: {
+    length: 1.2,
+    parts: [
+      {
+        voice: CHIME,
+        score: [
+          ["E5", 0, 0.08],
+          ["A5", 0.09, 0.08],
+          ["F#5", 0.18, 0.08],
+          ["B5", 0.27, 0.08],
+          ["G5", 0.36, 0.08],
+          ["C#6", 0.45, 0.08],
+          ["D6", 0.56, 0.6],
+        ],
+      },
+      {
+        voice: SOFT_HORNS,
+        score: [
+          ["A4", 0.56, 0.6],
+          ["D5", 0.56, 0.6],
+          ["F#5", 0.56, 0.6],
+        ],
+      },
+      {
+        voice: TUBA,
+        score: [
+          ["A2", 0, 0.5],
+          ["D3", 0.56, 0.6],
+        ],
+      },
+      {
+        voice: BELL,
+        score: [
+          ["A6", 0.66, 0.06],
+          ["D7", 0.72, 0.25],
+        ],
+      },
+    ],
+    // A soft shimmer of cymbal as it lands.
+    hits: [[0.56, 0.6, 0.05, 6000]],
+  },
+
+  // A boss beaten, in E major (its theme was E minor): up the tonic chord,
+  // a turn through the IV, up the V chord, and home on a long high E.
+  bossDefeated: {
+    length: 3.45,
+    parts: [
+      {
+        voice: BRASS,
+        score: [
+          ["B4", 0, 0.1],
+          ["E5", 0.13, 0.1],
+          ["G#5", 0.26, 0.1],
+          ["B5", 0.39, 0.45],
+          ["A5", 0.91, 0.1],
+          ["G#5", 1.04, 0.1],
+          ["F#5", 1.17, 0.1],
+          ["A5", 1.3, 0.3],
+          ["F#5", 1.69, 0.1],
+          ["B5", 1.82, 0.1],
+          ["D#6", 1.95, 0.22],
+          ["E6", 2.21, 1.2],
+        ],
+      },
+      {
+        voice: HORNS,
+        score: [
+          ["G#4", 0.39, 0.45],
+          ["B4", 0.39, 0.45],
+          ["A4", 0.91, 0.65],
+          ["C#5", 0.91, 0.65],
+          ["B4", 1.69, 0.48],
+          ["D#5", 1.69, 0.48],
+          ["G#5", 2.21, 1.2],
+          ["B5", 2.21, 1.2],
+        ],
+      },
+      {
+        voice: TUBA,
+        score: [
+          ["E3", 0.39, 0.45],
+          ["A2", 0.91, 0.65],
+          ["B2", 1.69, 0.48],
+          ["E3", 2.21, 1.2],
+          ["E2", 2.21, 1.2],
+        ],
+      },
+      {
+        voice: BELL,
+        score: [
+          ["E6", 2.34, 0.08],
+          ["G#6", 2.42, 0.08],
+          ["B6", 2.5, 0.08],
+          ["E7", 2.58, 0.3],
+        ],
+      },
+    ],
+    // A cymbal on the first long note, snare hits through the turn, then a
+    // roll into a crash on the high E.
+    hits: [[0.39, 0.5, 0.08, 5000], [0.91, 0.1, 0.12, 1800], [1.3, 0.1, 0.12, 1800], ...snareRoll(1.69, 12), [2.21, 1.4, 0.14, 5000]],
+  },
+};
+
+export const STINGER_NAMES = Object.keys(STINGERS) as StingerName[];
+
+// Exported for tests: how long a stinger is, and when its last note ends.
+// Throws on a note it can't read.
+export function stingerShape(name: StingerName): { length: number; lastNoteEnds: number } {
+  const { length, parts } = STINGERS[name];
+  const notes = parts.flatMap((part) => part.score);
+  for (const [note] of notes) midiOf(note);
+  return { length, lastNoteEnds: Math.max(...notes.map(([, at, duration]) => at + duration)) };
+}
 
 function noiseHit(ctx: AudioContext, out: AudioNode, start: number, length: number, gain: number, highpass: number): void {
   const source = ctx.createBufferSource();
@@ -425,32 +582,38 @@ function noiseHit(ctx: AudioContext, out: AudioNode, start: number, length: numb
   source.stop(start + length + 0.02);
 }
 
-// A short, ceremonial fanfare for the treasure in a big chest. The
-// background theme ducks out of the way while it plays, then comes back.
-export function playFanfare(): void {
+// The stinger playing now, if any, and when it's done.
+let stinger: { out: GainNode; ends: number } | null = null;
+
+function stingerPlaying(): boolean {
+  if (!stinger) return false;
+  const g = audioGraph();
+  return g !== null && g.ctx.currentTime < stinger.ends;
+}
+
+// Plays a stinger over everything. The theme ducks out of its way and comes
+// back up once it's done; if the theme changes meanwhile, the new one waits
+// for it (see playMusic). A new stinger cuts off one that's still going.
+export function playStinger(name: StingerName): void {
   const g = audioGraph();
   if (!g) return;
   const { ctx } = g;
+  const piece = STINGERS[name];
   const t0 = ctx.currentTime + 0.05;
+  if (stinger) stinger.out.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
+
   const out = ctx.createGain();
   out.connect(g.sfx);
-
-  const play = (score: Score, voice: Voice) => {
+  for (const { voice, score } of piece.parts) {
     for (const [note, at, length] of score) playNote(ctx, out, voice, midiOf(note), t0 + at, length);
-  };
-  play(FANFARE.lead, BRASS);
-  play(FANFARE.harmony, HORNS);
-  play(FANFARE.bass, TUBA);
-  play(FANFARE.sparkle, BELL);
-
-  // A snare roll building into a cymbal crash on the high C.
-  for (let i = 0; i < 9; i++) noiseHit(ctx, out, t0 + 1.53 + i * 0.04, 0.05, 0.04 + i * 0.012, 1800);
-  noiseHit(ctx, out, t0 + 1.9, 1.4, 0.14, 5000);
+  }
+  for (const [at, length, gain, highpass] of piece.hits) noiseHit(ctx, out, t0 + at, length, gain, highpass);
+  stinger = { out, ends: t0 + piece.length };
 
   g.music.gain.cancelScheduledValues(ctx.currentTime);
   g.music.gain.setTargetAtTime(MUSIC_LEVEL * 0.15, ctx.currentTime, 0.05);
-  g.music.gain.setTargetAtTime(MUSIC_LEVEL, t0 + 3.1, 0.35);
-  window.setTimeout(() => out.disconnect(), 4500);
+  g.music.gain.setTargetAtTime(MUSIC_LEVEL, stinger.ends, 0.35);
+  window.setTimeout(() => out.disconnect(), (piece.length + 1.5) * 1000);
 }
 
 // ---------------------------------------------------------------------------
@@ -542,8 +705,10 @@ function stopSong(track: Playing): void {
 
 // Switches to a theme (crossfading), or to silence with null. Asking for
 // what's already playing is a no-op, so this is safe to call every frame.
+// A new theme never starts under a stinger: the old one fades out right
+// away, so the stinger plays on its own, and the new one comes in after.
 export function playMusic(name: TrackName | null): void {
   if (playing?.name === name) return;
   if (playing) stopSong(playing);
-  playing = name ? startSong(name) : null;
+  playing = name && !stingerPlaying() ? startSong(name) : null;
 }

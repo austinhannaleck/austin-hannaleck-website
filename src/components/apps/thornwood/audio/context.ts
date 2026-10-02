@@ -7,7 +7,7 @@ type Graph = { ctx: AudioContext; master: GainNode; sfx: GainNode; music: GainNo
 
 let graph: Graph | null = null;
 
-// The music bus's resting volume; fanfares duck below it and come back.
+// The music bus's resting volume; stingers duck below it and come back.
 export const MUSIC_LEVEL = 0.32;
 let muted = false;
 

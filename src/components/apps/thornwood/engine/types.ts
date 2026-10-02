@@ -198,8 +198,8 @@ export type Enemy = Box & {
   // Dizzy after being swapped by the Switcheroo: harmless and can't act.
   stunFrames: number;
   // Which of the room's authored spawns this is (its index in the room's
-  // enemy list), or -1 for one created some other way. Dungeon enemies
-  // use it to stay defeated.
+  // enemy list), or -1 for one created some other way. It's how a beaten
+  // enemy is remembered (see respawn.ts).
   spawn: number;
 };
 
@@ -212,7 +212,7 @@ export type Prop = Box & { id: number; kind: PropKind; swapFlash: number };
 export type NpcKind =
   | "nana"
   | "banjo"
-  | "ribbit"
+  | "haggleby"
   | "moanica"
   | "fumbleton"
   | "mossbeard"
@@ -373,7 +373,6 @@ export type SoundName =
   | "shutterOpen"
   | "shutterClose"
   | "chestOpen"
-  | "chestAppear"
   | "stairs"
   | "lowHealth"
   | "text"
@@ -397,7 +396,10 @@ export type SoundName =
   | "lullaby"
   | "quake"
   | "peep"
-  | "bark";
+  | "bark"
+  // Stingers: a jingle for a puzzle solved, a fanfare for a boss beaten.
+  | "puzzleSolved"
+  | "bossDefeated";
 
 export type GameEvent =
   | { type: "sound"; name: SoundName }
@@ -439,6 +441,9 @@ export type GameState = {
   hero: Hero;
   inventory: Inventory;
   flags: Set<string>;
+  // Regular enemies you've beaten, by defeatKey, with the frame each one
+  // fell on. Their respawn rules (respawn.ts) say which are back.
+  defeated: Map<string, number>;
 
   enemies: Enemy[];
   npcs: Npc[];
@@ -464,6 +469,8 @@ export type GameState = {
   shutterArmed: boolean;
   shuttersClosed: boolean;
   barsOpen: boolean;
+  // A statue (not the hero) is holding a pressure plate down.
+  plateHeld: boolean;
   roomCleared: boolean;
   // Brief lockout after a crystal switch flips, so one swing can't flip
   // it back and forth on consecutive frames.

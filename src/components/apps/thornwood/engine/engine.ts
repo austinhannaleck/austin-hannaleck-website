@@ -68,6 +68,7 @@ export function createGame(seed: number, save: SaveData | null = null, status: G
       equipped: save?.equipped ?? null,
     },
     flags: new Set(save?.flags ?? []),
+    defeated: new Map(Object.entries(save?.defeated ?? {})),
     enemies: [],
     npcs: [],
     props: [],
@@ -86,6 +87,7 @@ export function createGame(seed: number, save: SaveData | null = null, status: G
     shutterArmed: false,
     shuttersClosed: false,
     barsOpen: false,
+    plateHeld: false,
     roomCleared: false,
     switchCooldown: 0,
     events: [],
@@ -232,7 +234,7 @@ function runDialogAction(state: GameState, action: DialogAction): void {
       return;
     case "buyHeart":
       if (state.inventory.gems < SHOP_HEART_PRICE) {
-        state.dialog = makeDialog(SHOP_TOO_POOR_PAGES, { speaker: "Ribbit" });
+        state.dialog = makeDialog(SHOP_TOO_POOR_PAGES, { speaker: "Haggleby" });
         return;
       }
       state.inventory.gems -= SHOP_HEART_PRICE;

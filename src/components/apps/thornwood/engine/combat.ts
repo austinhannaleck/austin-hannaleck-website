@@ -3,7 +3,8 @@ import { centerOf } from "./collision";
 import { QUAKE_PAGES, makeDialog, itemGetPages } from "./dialogue";
 import { addHitStop, addShake, playSound, spawnBurst } from "./effects";
 import { random } from "./rng";
-import { enemiesStayDefeated, flags, spawnThornbackSpoils } from "./room";
+import { rememberDefeat } from "./respawn";
+import { flags, spawnThornbackSpoils } from "./room";
 import { outOfReach } from "./swim";
 import {
   ENEMY_KNOCKBACK_FRAMES,
@@ -94,8 +95,7 @@ export function killEnemy(state: GameState, enemy: Enemy): void {
     return;
   }
   state.enemies = state.enemies.filter((e) => e !== enemy);
-  if (enemy.spawn >= 0 && enemiesStayDefeated(state.roomId)) {
-    state.flags.add(flags.defeated(state.roomId, enemy.spawn));
+  if (rememberDefeat(state, enemy)) {
     // Save right away, so a kill sticks even if you close the tab mid-room.
     state.events.push({ type: "checkpoint" });
   }
@@ -117,6 +117,7 @@ export function finishBoss(state: GameState, enemy: Enemy): void {
   state.enemies = state.enemies.filter((e) => e !== enemy);
   if (!boss) return;
   state.flags.add(flags.boss(boss));
+  playSound(state, "bossDefeated");
   const c = centerOf(enemy);
   spawnBurst(state, c.x, c.y, {
     count: 60,

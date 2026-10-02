@@ -87,9 +87,9 @@ export function tryInteract(state: GameState): boolean {
     if (ch === "i") {
       // Ding! The shopkeeper jumps.
       playSound(state, "bell");
-      const keeper = state.npcs.find((n) => n.kind === "ribbit");
+      const keeper = state.npcs.find((n) => n.kind === "haggleby");
       if (keeper) keeper.talkFrames = 40;
-      state.dialog = makeDialog(randomPick(state, BELL_LINES), { speaker: keeper ? "Ribbit" : null });
+      state.dialog = makeDialog(randomPick(state, BELL_LINES), { speaker: keeper ? "Haggleby" : null });
       return true;
     }
     if (ch === "n") {

@@ -82,10 +82,22 @@ describe("pixel art", () => {
     }
   });
 
-  it("draws the hero's frames all the same size", () => {
+  it("draws the hero's frames all the same size, standing on the same row", () => {
     const frames = Object.entries(artIn(hero)).filter(([name]) => name.startsWith("HERO_"));
     for (const [name, art] of frames) {
       expect([art[0].length, art.length], name).toEqual([16, 24]);
+      expect(art.findLastIndex((row) => row.replace(/\./g, "") !== ""), `${name}: feet`).toBe(21);
+    }
+  });
+
+  // Blinks, glances, and glints are swapped in for a few frames, so they
+  // have to line up exactly with the frame they vary.
+  it("draws every variant frame the same size as the frame it varies", () => {
+    for (const [name, art] of Object.entries(ALL_ART)) {
+      const base = name.replace(/_(BLINK|LOOK_LEFT|LOOK_RIGHT|GLINT_A|GLINT_B)$/, "");
+      if (base === name) continue;
+      expect(ALL_ART[base], `${name}: no ${base}`).toBeDefined();
+      expect([art[0].length, art.length], name).toEqual([ALL_ART[base][0].length, ALL_ART[base].length]);
     }
   });
 });
@@ -135,7 +147,7 @@ describe("the bitmap font", () => {
     const kinds: NpcKind[] = [
       "nana",
       "banjo",
-      "ribbit",
+      "haggleby",
       "moanica",
       "fumbleton",
       "mossbeard",

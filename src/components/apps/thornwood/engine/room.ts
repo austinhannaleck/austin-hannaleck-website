@@ -1,22 +1,21 @@
 import { createDrop, createEnemy, createNpc, createProp, ENEMY_STATS } from "./actors";
 import { centerOf, findFreeSpot, overlaps, tileSpan, type SolidAt } from "./collision";
 import { playSound, spawnBurst } from "./effects";
+import { stillDefeated } from "./respawn";
 import { CONDITIONAL_TILES, OPEN_CHEST, blocksShotsAlways, isAlwaysSolid, isPit, isWater, isWarp } from "./tiles";
 import { ROOMS, across, areaOf, cellAt, cellsOf, tileKey, type NpcSpawn } from "./world";
-import { ROOM_H, ROOM_W, TILE, type BossId, type Box, type GameState } from "./types";
+import { ROOM_H, ROOM_W, TILE, type BossId, type Box, type GameState, type Point } from "./types";
 
 // Loading rooms, and every rule about which tiles block what. Bushes
-// regrow each time you come back to a room, and so do overworld enemies
-// (the classic behavior). Anything permanent, like an opened chest, an
-// unlocked door, or a defeated dungeon enemy, lives in `state.flags` and is
-// re-applied on load.
+// regrow each time you come back to a room; whether a beaten enemy does is
+// up to its respawn rule (respawn.ts). Anything permanent, like an opened
+// chest or an unlocked door, lives in `state.flags` and is re-applied on
+// load.
 
 export const flags = {
   chest: (roomId: string, col: number, row: number) => `chest:${roomId}:${tileKey(col, row)}`,
   door: (roomId: string, col: number, row: number) => `door:${roomId}:${tileKey(col, row)}`,
   boss: (boss: BossId) => `boss:${boss}`,
-  // A dungeon enemy, by its spawn index in the room's enemy list.
-  defeated: (roomId: string, spawn: number) => `defeated:${roomId}:${spawn}`,
   // A screen the hero has set foot in, which fills it in on the map. Its
   // id is a cell id (see world.ts), the same as the room's for a
   // one-screen room.
@@ -91,7 +90,7 @@ export function loadRoom(state: GameState, roomId: string): void {
     .filter((spawn) => {
       const boss = ENEMY_STATS[spawn.kind].boss;
       if (boss) return !state.flags.has(flags.boss(boss));
-      return !state.flags.has(flags.defeated(roomId, spawn.index));
+      return !stillDefeated(state, roomId, spawn.index);
     })
     .map((spawn) => createEnemy(state, spawn.kind, spawn.col, spawn.row, spawn.index));
   state.npcs = npcsIn(roomId, state.flags).map((spawn) => createNpc(state, spawn, roomId));
@@ -140,22 +139,18 @@ export function spawnThornbackSpoils(state: GameState, bossX: number, bossY: num
   }
 }
 
-// In dungeons, what you defeat stays defeated; out in the overworld,
-// monsters come back whenever you return.
-export function enemiesStayDefeated(roomId: string): boolean {
-  return areaOf(roomId) !== "overworld";
-}
-
-export function revealHiddenChests(state: GameState, announce: boolean): void {
+// Says whether any chest appeared.
+export function revealHiddenChests(state: GameState, announce: boolean): boolean {
   const def = ROOMS[state.roomId];
+  let revealed = false;
   for (const [key, chest] of Object.entries(def.chests ?? {})) {
     if (!chest.hidden) continue;
     const [col, row] = key.split(",").map(Number);
     if (state.tiles[row][col] === "C" || state.tiles[row][col] === OPEN_CHEST) continue;
     state.tiles[row][col] = "C";
+    revealed = true;
     nudgeHeroOffTile(state, col, row);
     if (announce) {
-      playSound(state, "chestAppear");
       spawnBurst(state, (col + 0.5) * TILE, (row + 0.5) * TILE, {
         count: 24,
         colors: [0xfff3a0, 0xffffff, 0xffd166],
@@ -167,6 +162,7 @@ export function revealHiddenChests(state: GameState, announce: boolean): void {
       });
     }
   }
+  return revealed;
 }
 
 // A chest that pops into existence right where the hero is standing would
@@ -285,13 +281,23 @@ function heroOverlapsTile(state: GameState, ch: string): boolean {
   return false;
 }
 
+function onPlate(state: GameState, at: Point): boolean {
+  return tileAt(state, Math.floor(at.x / TILE), Math.floor(at.y / TILE)) === "P";
+}
+
+function statueOnPlate(state: GameState): boolean {
+  return state.props.some((p) => p.kind === "statue" && onPlate(state, centerOf(p)));
+}
+
 function platesPressed(state: GameState): boolean {
-  const hero = centerOf(state.hero);
-  const weights = [
-    ...(state.hero.action === "fall" ? [] : [hero]),
-    ...state.props.filter((p) => p.kind === "statue").map(centerOf),
-  ];
-  return weights.some((w) => tileAt(state, Math.floor(w.x / TILE), Math.floor(w.y / TILE)) === "P");
+  const heroOnPlate = state.hero.action !== "fall" && onPlate(state, centerOf(state.hero));
+  return heroOnPlate || statueOnPlate(state);
+}
+
+// Beating the boss is what clears a boss's room, and the boss fanfare
+// says so.
+function hasBoss(roomId: string): boolean {
+  return (ROOMS[roomId].enemies ?? []).some((spawn) => ENEMY_STATS[spawn.kind].boss);
 }
 
 function livingEnemies(state: GameState): number {
@@ -301,12 +307,21 @@ function livingEnemies(state: GameState): number {
 // Recomputes shutters, bars, and room-clear state from scratch each step,
 // announcing any change with a sound. `quiet` is for the moment a room is
 // entered, when the starting state shouldn't make a noise.
+//
+// Fighting your way out of a trap, a hidden chest appearing, and a statue
+// left holding the bars open are each a puzzle solved, and get the jingle:
+// once, however many of them happen together.
 export function updateMechanisms(state: GameState, quiet = false): void {
+  let solved = false;
+
   if (!state.shutterArmed && !heroOverlapsTile(state, "S")) state.shutterArmed = true;
   const shut = state.shutterArmed && livingEnemies(state) > 0;
   if (shut !== state.shuttersClosed) {
     state.shuttersClosed = shut;
-    if (!quiet && roomHasTile(state, "S")) playSound(state, shut ? "shutterClose" : "shutterOpen");
+    if (!quiet && roomHasTile(state, "S")) {
+      playSound(state, shut ? "shutterClose" : "shutterOpen");
+      if (!shut) solved = true;
+    }
   }
 
   const pressed = platesPressed(state);
@@ -314,9 +329,18 @@ export function updateMechanisms(state: GameState, quiet = false): void {
     state.barsOpen = pressed;
     if (!quiet && roomHasTile(state, "D")) playSound(state, "bars");
   }
+  // Standing on the plate yourself only opens the bars; getting a statue
+  // to hold it for you is the trick.
+  const held = statueOnPlate(state);
+  if (held !== state.plateHeld) {
+    state.plateHeld = held;
+    if (held && !quiet && roomHasTile(state, "D")) solved = true;
+  }
 
   if (!state.roomCleared && state.enemies.length === 0) {
     state.roomCleared = true;
-    revealHiddenChests(state, !quiet);
+    if (revealHiddenChests(state, !quiet) && !quiet) solved = true;
   }
+
+  if (solved && !hasBoss(state.roomId)) playSound(state, "puzzleSolved");
 }

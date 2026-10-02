@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TRACK_NAMES, parseChord, parseLine, songShape } from "./music";
+import { STINGER_NAMES, TRACK_NAMES, parseChord, parseLine, songShape, stingerShape } from "./music";
 
 describe("music notation", () => {
   it("turns held notes into longer events and skips rests", () => {
@@ -23,5 +23,14 @@ describe("music notation", () => {
   it.each(TRACK_NAMES)("%s has a melody that fills exactly one bar per chord", (name) => {
     const { bars, melodySteps } = songShape(name);
     expect(melodySteps).toBe(bars * 8);
+  });
+});
+
+describe("stingers", () => {
+  // The music comes back once a stinger's over, so it mustn't come back
+  // over the end of one.
+  it.each(STINGER_NAMES)("%s has finished every note by the time it's over", (name) => {
+    const { length, lastNoteEnds } = stingerShape(name);
+    expect(lastNoteEnds).toBeLessThanOrEqual(length + 1e-9);
   });
 });

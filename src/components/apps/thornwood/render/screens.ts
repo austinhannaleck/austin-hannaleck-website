@@ -1,6 +1,6 @@
-import { BOSS_NAMES } from "../engine/actors";
+import { BOSS_NAMES, ENEMY_STATS } from "../engine/actors";
 import { carrying } from "../engine/quests";
-import type { BossId, GameState, ToolId } from "../engine/types";
+import type { BossId, Enemy, GameState, ToolId } from "../engine/types";
 import { dungeonOf } from "../engine/world";
 import { formatTime } from "../ui/format";
 import {
@@ -20,8 +20,8 @@ import type { Sprite } from "./pixelart";
 import type { Sprites } from "./sprites";
 
 // The 2D interface, drawn straight into the game screen in the same pixel
-// font and palette as the world: HUD, dialog box, boss bar and title cards,
-// and the full-screen menus.
+// font and palette as the world: HUD (with the boss bar), dialog box, title
+// cards, and the full-screen menus.
 
 export const SCREEN_W = 256;
 export const HUD_H = 32;
@@ -74,7 +74,9 @@ function itemSlot(ctx: CanvasRenderingContext2D, x: number, label: string, icon:
   text(ctx, label, x + 11, 22, GOLD, "center");
 }
 
-export function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprites): void {
+// `boss` is the boss you're fighting, if any. Its name and health take over
+// the middle of the HUD (gems and keys can wait) so nothing covers the fight.
+export function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites: Sprites, boss: Enemy | undefined): void {
   rect(ctx, 0, 0, SCREEN_W, HUD_H, "#141028");
   rect(ctx, 0, HUD_H - 2, SCREEN_W, 1, "#2e2458");
   rect(ctx, 0, HUD_H - 1, SCREEN_W, 1, SHADOW);
@@ -83,16 +85,20 @@ export function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites
   itemSlot(ctx, 8, "SPACE", inv.owned.has("sword") ? sprites.sword.downRight : null);
   itemSlot(ctx, 40, ITEM_KEY, inv.equipped ? toolIcon(sprites, inv.equipped) : null);
 
-  blit(ctx, sprites.items.gem, 72, 9);
-  text(ctx, String(inv.gems).padStart(3, "0"), 83, 11);
-  const dungeon = dungeonOf(state.roomId);
-  if (dungeon) {
-    const keys = inv.keys[dungeon];
-    blit(ctx, sprites.items.smallKey, 106, 8);
-    text(ctx, String(keys.small), 116, 11);
-    if (keys.big) blit(ctx, sprites.items.bigKey, 126, 6);
-  } else if (inv.gateKey) {
-    blit(ctx, sprites.items.gateKey, 108, 6);
+  if (boss) {
+    bossBar(ctx, BOSS_NAMES[ENEMY_STATS[boss.kind].boss!].name, boss.hp, boss.maxHp);
+  } else {
+    blit(ctx, sprites.items.gem, 72, 9);
+    text(ctx, String(inv.gems).padStart(3, "0"), 83, 11);
+    const dungeon = dungeonOf(state.roomId);
+    if (dungeon) {
+      const keys = inv.keys[dungeon];
+      blit(ctx, sprites.items.smallKey, 106, 8);
+      text(ctx, String(keys.small), 116, 11);
+      if (keys.big) blit(ctx, sprites.items.bigKey, 126, 6);
+    } else if (inv.gateKey) {
+      blit(ctx, sprites.items.gateKey, 108, 6);
+    }
   }
 
   text(ctx, "- LIFE -", 210, 2, "#ff8c8c", "center");
@@ -164,20 +170,25 @@ export function drawDialog(ctx: CanvasRenderingContext2D, state: GameState, oy: 
   }
 }
 
-// ---------------------------------------------------------------------------
-// Boss bar, boss title card, area banner
-// ---------------------------------------------------------------------------
-export function drawBossBar(ctx: CanvasRenderingContext2D, name: string, hp: number, maxHp: number, oy: number): void {
-  const w = 132;
-  const x = (SCREEN_W - w) / 2;
-  const y = oy + 4;
-  panel(ctx, x, y, w, 24, "#3a1430");
-  text(ctx, name.toUpperCase(), SCREEN_W / 2, y + 5, "#ffb0c8", "center");
-  rect(ctx, x + 10, y + 16, w - 20, 4, SHADOW);
-  const filled = Math.round(((w - 22) * Math.max(0, hp)) / maxHp);
-  rect(ctx, x + 11, y + 17, filled, 2, "#ff4060");
-  rect(ctx, x + 11, y + 17, filled, 1, "#ff9cb0");
+// The boss's half of the HUD, laid out like the LIFE half: name on top,
+// a framed bar level with the hearts. It fits between the item boxes and
+// a full row of ten hearts.
+function bossBar(ctx: CanvasRenderingContext2D, name: string, hp: number, maxHp: number): void {
+  const x = 69;
+  const w = 88;
+  const y = 14;
+  text(ctx, name.toUpperCase(), x + w / 2, 2, "#ffb0c8", "center");
+  rect(ctx, x, y, w, 7, SHADOW);
+  rect(ctx, x + 1, y + 1, w - 2, 5, INK);
+  rect(ctx, x + 2, y + 2, w - 4, 3, "#3a1430");
+  const filled = Math.round(((w - 4) * Math.max(0, hp)) / maxHp);
+  rect(ctx, x + 2, y + 2, filled, 3, "#ff4060");
+  rect(ctx, x + 2, y + 2, filled, 1, "#ff9cb0");
 }
+
+// ---------------------------------------------------------------------------
+// Boss title card, area banner
+// ---------------------------------------------------------------------------
 
 export function drawBossIntro(ctx: CanvasRenderingContext2D, boss: BossId, age: number, oy: number): void {
   if (age > 3) return;

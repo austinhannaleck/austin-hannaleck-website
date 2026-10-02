@@ -1,6 +1,6 @@
 import type { SoundName } from "../engine/types";
 import { audioGraph, whiteNoise } from "./context";
-import { playFanfare } from "./music";
+import { playStinger } from "./music";
 
 // Every sound effect, synthesized on the spot from oscillators and noise.
 
@@ -110,7 +110,7 @@ const SOUNDS: Record<SoundName, () => void> = {
     tone({ from: 1046.5, duration: 0.7, type: "square", gain: 0.07, delay: 0.4, attack: 0.02 });
     tone({ from: 130.8, duration: 1.0, type: "triangle", gain: 0.12, delay: 0.4 });
   },
-  fanfare: playFanfare,
+  fanfare: () => playStinger("treasure"),
   doorUnlock: () => {
     tone({ from: 240, to: 170, duration: 0.1, type: "square", gain: 0.08 });
     noise({ duration: 0.3, from: 450, gain: 0.25, delay: 0.1 });
@@ -125,7 +125,6 @@ const SOUNDS: Record<SoundName, () => void> = {
     tone({ from: 170, to: 55, duration: 0.25, type: "square", gain: 0.1 });
   },
   chestOpen: () => tone({ from: 260, to: 520, duration: 0.22, type: "triangle", gain: 0.1 }),
-  chestAppear: () => arpeggio([1046.5, 1318.5, 1568, 2093], 0.06, 0.2, "sine", 0.09),
   stairs: () => arpeggio([784, 659.25, 523.25, 392], 0.08, 0.14, "triangle", 0.1),
   lowHealth: () => {
     tone({ from: 1480, duration: 0.07, type: "square", gain: 0.04 });
@@ -221,6 +220,8 @@ const SOUNDS: Record<SoundName, () => void> = {
     tone({ from: 2400, to: 3100, duration: 0.07, type: "square", gain: 0.05 });
     tone({ from: 2600, to: 3400, duration: 0.08, type: "square", gain: 0.05, delay: 0.1 });
   },
+  puzzleSolved: () => playStinger("puzzleSolved"),
+  bossDefeated: () => playStinger("bossDefeated"),
 };
 
 export function playSfx(name: SoundName): void {

@@ -16,7 +16,7 @@ commitments, just a list to pull from.
 - **Lifting and throwing pots and rocks**, the most recognizable *A Link to the Past* verb. Needs a
   carry state on the hero and a thrown-object projectile.
 - **Pushable blocks** for a classic sliding-block puzzle room.
-- **More for gems to buy.** Ribbit's shop has one item; a bottle or a fairy-in-a-jar refill would
+- **More for gems to buy.** Haggleby's shop has one item; a bottle or a fairy-in-a-jar refill would
   give the wallet a reason to fill up.
 - **More side quests**, now that Fernwhistle has four: Banjo's lost ball, Sir Fumbleton working up
   the nerve to leave his bush, a trading sequence between the two villages.
@@ -27,13 +27,9 @@ commitments, just a list to pull from.
 
 - **A compass**, the classic dungeon item that marks the boss room (and unopened chests) on the
   map before you've found them.
-- **More animation frames**: a proper attack pose for each direction, blinking, knights that turn
-  their heads, Nana's glasses glinting.
 - **Palette effects**: a dark room you light with a lantern, a lightning flash on the boss's phase
   change, water that palette-cycles instead of drawing glints.
 - **A title-screen attract mode** that plays back a short scripted demo, the way cartridges did.
-- **Short stingers**: a "puzzle solved" jingle, a boss-defeated fanfare before the room music
-  returns.
 
 ## Engine
 

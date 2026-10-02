@@ -89,7 +89,7 @@ export const FERNWHISTLE_ROOMS: Record<string, RoomDef> = {
       { kind: "tilly", col: 18, row: 19 },
       // Hiding behind the windmill.
       { kind: "bo", col: 10, row: 2, tag: "bo", home: square(17, 20) },
-      // Hiding behind the Mayor's Hall, ears and all.
+      // Hiding behind the Mayor's Hall, cowlick and all.
       { kind: "pip", col: 20, row: 2, tag: "pip", home: square(19, 20) },
       { kind: "ott", col: 3, row: 24 },
     ],
