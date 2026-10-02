@@ -167,6 +167,7 @@ function build() {
     thorn: sprite(objects.THORN),
     bolt: [toSprite(objects.BOLT_A), toSprite(objects.BOLT_B)],
     star: toSprite(objects.STAR),
+    question: sprite(objects.QUESTION),
     sparkle: toSprite(objects.SPARKLE),
   };
 

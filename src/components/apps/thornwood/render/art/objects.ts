@@ -117,6 +117,20 @@ export const BOLT_B = [
 export const STAR = ["..z..", ".yzy.", "zzwzz", ".yzy.", "..z.."];
 export const SPARKLE = ["..w..", "..w..", "wwwww", "..w..", "..w.."];
 
+// Over the head of anything the Switcheroo just swapped: it has no idea
+// how it got here. In the bolt's purples.
+export const QUESTION = [
+  ".......",
+  "..wvv..",
+  ".w...p.",
+  ".....p.",
+  "...vp..",
+  "...v...",
+  ".......",
+  "...v...",
+  ".......",
+];
+
 // ---------------------------------------------------------------------------
 // Overworld props
 // ---------------------------------------------------------------------------

@@ -679,20 +679,24 @@ export class PixelRenderer {
         f.rotate(-angle);
         f.drawImage(flash ? body.flash() : body.img, -Math.round(body.w / 2), -Math.round(body.h / 2) - 2);
         f.restore();
-        this.drawStars(e, cx, o.y + e.y - 10, time);
+        this.drawDazed(e, cx, o.y + e.y - 10, time);
         return;
       }
     }
     this.stand(s, cx + shake, footY - lift, flash);
-    this.drawStars(e, cx, footY - lift - s.baseline + 2, time);
+    this.drawDazed(e, cx, footY - lift - s.baseline + 2, time);
   }
 
-  private drawStars(e: Enemy, cx: number, top: number, time: number): void {
-    const dizzy = e.stunFrames > 0 || ((e.kind === "clank" || e.kind === "thornback") && e.mode === "stunned");
-    if (!dizzy) return;
+  // Swapped by the Switcheroo, it's confused: question marks. A boss that
+  // charged into a wall is seeing stars.
+  private drawDazed(e: Enemy, cx: number, top: number, time: number): void {
+    const confused = e.stunFrames > 0;
+    const bonked = (e.kind === "clank" || e.kind === "thornback") && e.mode === "stunned";
+    if (!confused && !bonked) return;
+    const s = confused ? this.sprites.items.question : this.sprites.items.star;
     for (let i = 0; i < 3; i++) {
       const a = time * 5 + (i / 3) * Math.PI * 2;
-      this.blit(this.sprites.items.star, cx + Math.cos(a) * 8 - 2, top + Math.sin(a) * 3 - 2);
+      this.blit(s, cx + Math.cos(a) * 8 - Math.floor(s.w / 2), top + Math.sin(a) * 3 - s.h + 3);
     }
   }
 
