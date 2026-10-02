@@ -39,9 +39,9 @@ pnpm test          # run the Vitest suite once
 ```
 
 Vitest covers the codebase's pure logic (game-tick reducers, `localStorage`
-sanitizers, the Signal jam-link encode/decode round trip), colocated as
-`*.test.ts` next to the code it covers. It doesn't cover rendering or the
-live Web Audio graph.
+sanitizers, the Signal jam-link encode/decode round trip, Thornwood's whole
+game engine and level data), colocated as `*.test.ts` next to the code it
+covers. It doesn't cover rendering or the live Web Audio graph.
 
 ## Top-level structure
 
@@ -55,6 +55,7 @@ src/
     Apps.tsx                           # project showcase grid
     apps/                              # one folder per showcased app
       GetTheBuggy.tsx, getTheBuggy/    # Snake-style game
+      Thornwood.tsx, thornwood/        # 16-bit-style top-down action adventure
       HiveMind.tsx                     # placeholder ("coming soon")
     instruments/                       # Signal: synth + drum machine + bassline
       Synth.tsx, DrumMachine.tsx, Bassline.tsx
@@ -161,6 +162,62 @@ composing a folder of pieces (`getTheBuggy/`) that separates concerns:
   parsing of whatever's already in a user's browser.
 - Small presentational components for individual visual pieces (`Bug.tsx`,
   `Carrot.tsx`, ...).
+
+### Thornwood: a 16-bit top-down adventure
+
+`Thornwood.tsx` is an action adventure in the spirit of *A Link to the
+Past*, styled after the SNES and Genesis era: a village with a few odd
+neighbors, a small overworld, and Bramblekeep, a dungeon built around one
+tool. That tool is the Switcheroo, which fires a bolt that swaps you with
+whatever it hits. Its puzzles (crossing a chasm, weighing down a pressure
+plate, flipping a crystal switch from across a pit) and its boss (an
+armored beetle that's only vulnerable from behind, so you swap places to
+get there) all hinge on it.
+
+There are no image or audio files. Every sprite is pixel art written as
+text, every tile is painted procedurally, and the music is played by a
+small Web Audio "sound chip":
+
+```
+thornwood/
+  engine/      # the game's rules: pure TypeScript, no DOM, no canvas
+    rooms/     # levels, authored as 16x11 grids of tile characters
+  render/      # Canvas 2D: draws engine state at 256x208, like a SNES
+    art/       # pixel art as text grids, plus procedural sprite painters
+  audio/       # sound effects and a chiptune sequencer with five themes
+  ui/          # touch controls and the in-game menu model
+  useThornwood.ts   # glue: game loop, input, audio, save/load
+```
+
+- **The engine is a classic 2D tile simulation**: room-local pixel
+  coordinates, AABB collision, a fixed 60Hz step. It never touches the
+  DOM, which is what lets Vitest play the game headlessly. The tests swing
+  swords at enemies, solve the dungeon's puzzles with real inputs, and
+  beat the boss from behind. Randomness comes from a seeded PRNG stored on
+  the game state, so a given seed and inputs always play out the same way.
+- **Sprites are text.** Characters are drawn as rows of palette codes
+  (`"..hsewssssewsH.."`), outlined automatically, and mirrored, rotated,
+  or recolored for other facings and variants. Bigger shapes (the boss,
+  trees, hearts) come from a few shaded-ellipse and line primitives that
+  paint into the same format. `art.test.ts` catches ragged rows, unknown
+  colors, and any character the game displays that the bitmap font lacks.
+- **The renderer owns no game logic.** It draws a 256x208 frame (the
+  SNES's native width) that the page scales up by whole pixels, so every
+  pixel stays square. Static ground is painted once per room; characters
+  and tall props are depth-sorted each frame. Stairs dissolve with a
+  SNES-style mosaic, and dungeons get torchlight.
+- **Songs are melodies over chords.** Each theme is a melody line plus one
+  chord per bar; the bass and the fast chiptune arpeggios are generated
+  from the chords. Voices mix pulse waves and an echo bus (SNES) with
+  two-operator FM (Genesis).
+- **Levels are text, too.** Each room is a grid of characters (`T` tree,
+  `b` bush, `v` pit, `L` locked door...). `world.test.ts` validates them:
+  map shape, matching openings between neighboring rooms, and every chest
+  and room reachable from the start (counting Switcheroo swaps).
+- **React stays out of the hot path.** The game lives in a ref and runs on
+  `requestAnimationFrame`. The HUD, dialog box, and menus are drawn inside
+  the canvas, so React only hears about which menu is up (for the touch
+  controls and a screen-reader mirror of the menu).
 
 `HiveMind.tsx` is a placeholder for a not-yet-built app and intentionally
 has no game logic behind it.

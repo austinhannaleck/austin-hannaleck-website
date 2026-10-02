@@ -71,3 +71,25 @@ by accident:
   backfilled automatically by `sanitizePatch`).
 - **No sample-accurate sync**: Synth and DrumMachine each run independent schedulers and
   `AudioContext`s; the shared `bpm`/`bpmLocked` props only do periodic realignment, not lockstep.
+
+### Thornwood (16-bit adventure game)
+
+`src/components/apps/thornwood/` keeps the game's rules and its rendering strictly apart:
+
+- **`engine/` must stay pure.** No DOM, canvas, or audio imports there. The engine advances in
+  fixed 60Hz steps over a 2D tile model and reports side effects (sounds, autosave checkpoints,
+  boss intros) as entries in `state.events`, which `useThornwood.ts` drains each frame. All
+  randomness goes through `engine/rng.ts` (seeded, stored on the state) so tests are
+  deterministic.
+- **`render/` must stay logic-free.** It reads `GameState` and draws it; it never writes game
+  state. The screen is 256x208 native pixels, scaled up by the page.
+- **Pixel art is text** (`render/art/`, palette in `render/palette.ts`). Author sprites without
+  outlines and with one transparent pixel of margin; `sprite()` adds the outline. Run `pnpm test`
+  after editing: `art.test.ts` checks shapes, palette codes, margins, and that the bitmap font has
+  every character the game displays.
+- **Rooms are text grids** (`engine/rooms/`, legend in `engine/tiles.ts`). `world.test.ts` checks
+  map shape, matching edges between neighbors, chest/sign/warp keys, and reachability.
+- **Music** (`audio/music.ts`) is a melody plus one chord per bar; bass and arpeggios are generated
+  from the chords. `music.test.ts` checks each melody fills exactly its bars.
+- New gameplay rules get a test in `engine/engine.test.ts` that drives them with real inputs.
+- `FOLLOWUP_IDEAS.md` in that folder lists intentionally deferred features.
