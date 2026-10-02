@@ -5,6 +5,9 @@ import { sanitizeSave, type SaveData } from "./engine/save";
 // read is sanitized and every failure is quietly survivable: worst case,
 // progress just doesn't persist this session.
 
+// The key's ".v1" is historical: the format's version lives inside the save
+// (SAVE_VERSION in engine/save.ts), so the key stays put and old saves are
+// found and migrated rather than orphaned.
 const SAVE_KEY = "thornwood.save.v1";
 const BEST_KEY = "thornwood.bestFrames";
 const MUTED_KEY = "thornwood.muted";

@@ -18,12 +18,15 @@ commitments, just a list to pull from.
 - **Pushable blocks** for a classic sliding-block puzzle room.
 - **More for gems to buy.** Ribbit's shop has one item; a bottle or a fairy-in-a-jar refill would
   give the wallet a reason to fill up.
-- **Side quests** for the villagers (Banjo's lost ball, Sir Fumbleton working up the nerve to leave
-  his bush).
+- **More side quests**, now that Fernwhistle has four: Banjo's lost ball, Sir Fumbleton working up
+  the nerve to leave his bush, a trading sequence between the two villages.
+- **A quest log** on the pause screen. For now, Fernwhistle's notice board in the square is the
+  closest thing.
 
 ## Presentation
 
-- **A dungeon map** on the pause screen, filling in as rooms are visited.
+- **A compass**, the classic dungeon item that marks the boss room (and unopened chests) on the
+  map before you've found them.
 - **More animation frames**: a proper attack pose for each direction, blinking, knights that turn
   their heads, Nana's glasses glinting.
 - **Palette effects**: a dark room you light with a lantern, a lightning flash on the boss's phase

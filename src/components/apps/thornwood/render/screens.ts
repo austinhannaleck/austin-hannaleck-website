@@ -1,6 +1,19 @@
 import { BOSS_NAMES } from "../engine/actors";
-import type { BossId, GameState } from "../engine/types";
+import { carrying } from "../engine/quests";
+import type { BossId, GameState, ToolId } from "../engine/types";
+import { dungeonOf } from "../engine/world";
 import { formatTime } from "../ui/format";
+import {
+  ITEMS_PANEL,
+  GEAR_PANEL,
+  ITEM_SLOT_COUNT,
+  MENU_PANEL,
+  TOOL_INFO,
+  itemSlotRect,
+  slotOfTool,
+  toolInSlot,
+  type PauseFocus,
+} from "../ui/inventory";
 import { menuLayout, type MenuItem, type Rect } from "../ui/menu";
 import { LINE_HEIGHT, drawText, measureText, wrapText } from "./font";
 import type { Sprite } from "./pixelart";
@@ -13,13 +26,13 @@ import type { Sprites } from "./sprites";
 export const SCREEN_W = 256;
 export const HUD_H = 32;
 
-const INK = "#fffaf0";
-const GOLD = "#ffd040";
-const SHADOW = "#1c1230";
+export const INK = "#fffaf0";
+export const GOLD = "#ffd040";
+export const SHADOW = "#1c1230";
 const PANEL = "#1e2a78";
-const PANEL_EDGE = "#8898e0";
+export const PANEL_EDGE = "#8898e0";
 
-function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void {
+export function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void {
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
 }
@@ -42,7 +55,7 @@ export function panel(ctx: CanvasRenderingContext2D, x: number, y: number, w: nu
   ctx.clearRect(x + w - 1, y + h - 1, 1, 1);
 }
 
-function text(ctx: CanvasRenderingContext2D, value: string, x: number, y: number, color = INK, align: "left" | "center" | "right" = "left", scale = 1): void {
+export function text(ctx: CanvasRenderingContext2D, value: string, x: number, y: number, color = INK, align: "left" | "center" | "right" = "left", scale = 1): void {
   drawText(ctx, value, x, y, color, { shadow: SHADOW, align, scale });
 }
 
@@ -67,15 +80,19 @@ export function drawHud(ctx: CanvasRenderingContext2D, state: GameState, sprites
   rect(ctx, 0, HUD_H - 1, SCREEN_W, 1, SHADOW);
   const inv = state.inventory;
 
-  itemSlot(ctx, 8, "SPACE", inv.hasSword ? sprites.sword.downRight : null);
-  itemSlot(ctx, 40, ITEM_KEY, inv.hasSwitcheroo ? sprites.wand.right : null);
+  itemSlot(ctx, 8, "SPACE", inv.owned.has("sword") ? sprites.sword.downRight : null);
+  itemSlot(ctx, 40, ITEM_KEY, inv.equipped ? toolIcon(sprites, inv.equipped) : null);
 
   blit(ctx, sprites.items.gem, 72, 9);
   text(ctx, String(inv.gems).padStart(3, "0"), 83, 11);
-  if (state.roomId.startsWith("bramblekeep")) {
+  const dungeon = dungeonOf(state.roomId);
+  if (dungeon) {
+    const keys = inv.keys[dungeon];
     blit(ctx, sprites.items.smallKey, 106, 8);
-    text(ctx, String(inv.smallKeys), 116, 11);
-    if (inv.hasBigKey) blit(ctx, sprites.items.bigKey, 126, 6);
+    text(ctx, String(keys.small), 116, 11);
+    if (keys.big) blit(ctx, sprites.items.bigKey, 126, 6);
+  } else if (inv.gateKey) {
+    blit(ctx, sprites.items.gateKey, 108, 6);
   }
 
   text(ctx, "- LIFE -", 210, 2, "#ff8c8c", "center");
@@ -333,30 +350,115 @@ export function drawTitle(
   if (bestFrames !== null) text(ctx, `BEST ${formatTime(bestFrames)}`, SCREEN_W - 6, 166, GOLD, "right");
 }
 
-export function drawPause(ctx: CanvasRenderingContext2D, state: GameState, items: MenuItem[], cursor: number, sprites: Sprites, time: number): void {
+export function drawPause(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  items: MenuItem[],
+  cursor: number,
+  focus: PauseFocus,
+  sprites: Sprites,
+  time: number,
+): void {
   dim(ctx, "rgba(12, 8, 28, 0.7)");
-  panel(ctx, 28, 40, 200, 150);
-  text(ctx, "PAUSED", SCREEN_W / 2, 50, GOLD, "center", 2);
-
   const inv = state.inventory;
-  const slots: [string, Sprite | null][] = [
-    ["Sword", inv.hasSword ? sprites.sword.downRight : null],
-    ["Switcheroo", inv.hasSwitcheroo ? sprites.wand.right : null],
-  ];
-  slots.forEach(([label, icon], i) => {
-    const x = 52 + i * 84;
-    rect(ctx, x, 76, 22, 22, SHADOW);
-    rect(ctx, x + 1, 77, 20, 20, "#262064");
-    if (icon) ctx.drawImage(icon.img, x + 11 - icon.w / 2, 87 - icon.h / 2);
-    text(ctx, icon ? label : "???", x + 26, 83, icon ? INK : "#8898e0");
-  });
-  ctx.drawImage(sprites.items.gem.img, 52, 106);
-  text(ctx, `${inv.gems} gems`, 64, 108);
-  ctx.drawImage(sprites.items.smallKey.img, 136, 104);
-  text(ctx, `${inv.smallKeys} ${inv.smallKeys === 1 ? "key" : "keys"}`, 148, 108);
-  if (inv.hasBigKey) ctx.drawImage(sprites.items.bigKey.img, 196, 100);
-  text(ctx, "Progress saves in every new room.", SCREEN_W / 2, 128, "#8898e0", "center");
-  drawMenu(ctx, "paused", items, cursor, sprites, time);
+
+  // ITEMS: the tools. The one with the cursor on it is on the item button.
+  const ip = ITEMS_PANEL;
+  panel(ctx, ip.x, ip.y, ip.w, ip.h);
+  text(ctx, "ITEMS", ip.x + ip.w / 2, ip.y + 6, GOLD, "center");
+  for (let i = 0; i < ITEM_SLOT_COUNT; i++) {
+    const r = itemSlotRect(i);
+    rect(ctx, r.x, r.y, r.w, r.h, SHADOW);
+    rect(ctx, r.x + 1, r.y + 1, r.w - 2, r.h - 2, "#262064");
+    const tool = toolInSlot(i);
+    if (tool && inv.owned.has(tool)) {
+      const icon = toolIcon(sprites, tool);
+      blit(ctx, icon, r.x + r.w / 2 - icon.w / 2, r.y + r.h / 2 - icon.h / 2);
+    }
+  }
+  if (inv.equipped) {
+    const r = itemSlotRect(slotOfTool(inv.equipped));
+    const active = focus === "items";
+    selectionCorners(ctx, r, active ? Math.floor(time * 4) % 2 : 0, active ? GOLD : PANEL_EDGE);
+    const info = TOOL_INFO[inv.equipped];
+    text(ctx, info.name, ip.x + ip.w / 2, ip.y + 80, INK, "center");
+    wrapText(info.blurb, ip.w - 16).slice(0, 2).forEach((line, i) => {
+      text(ctx, line, ip.x + ip.w / 2, ip.y + 92 + i * 9, PANEL_EDGE, "center");
+    });
+  } else {
+    text(ctx, "No tools yet.", ip.x + ip.w / 2, ip.y + 80, PANEL_EDGE, "center");
+  }
+
+  // GEAR: things that just work once you have them.
+  const gp = GEAR_PANEL;
+  panel(ctx, gp.x, gp.y, gp.w, gp.h);
+  text(ctx, "GEAR", gp.x + gp.w / 2, gp.y + 6, GOLD, "center");
+  gearRow(ctx, gp.x + 8, gp.y + 18, "Sword", inv.owned.has("sword") ? sprites.sword.downRight : null);
+  gearRow(ctx, gp.x + 8, gp.y + 44, "Flippers", inv.owned.has("flippers") ? sprites.items.flippers : null);
+  // Keys: this dungeon's, if you're in one, then the Gate Key if you're
+  // carrying it.
+  const keysY = gp.y + 76;
+  let keyX = gp.x + 12;
+  const dungeon = dungeonOf(state.roomId);
+  if (dungeon) {
+    const keys = inv.keys[dungeon];
+    blit(ctx, sprites.items.smallKey, keyX, keysY);
+    text(ctx, `x${keys.small}`, keyX + 10, keysY + 4);
+    keyX += 32;
+    if (keys.big) {
+      blit(ctx, sprites.items.bigKey, keyX, keysY - 4);
+      keyX += 18;
+    }
+  }
+  if (inv.gateKey) blit(ctx, sprites.items.gateKey, keyX, keysY - 4);
+  // Whatever you're carrying for somebody in Fernwhistle.
+  const errand = carrying(state);
+  if (errand) {
+    const icon = sprites.items[errand];
+    blit(ctx, icon, gp.x + 19 - icon.w / 2, gp.y + 100 - icon.h / 2);
+    text(ctx, ERRAND_NAMES[errand], gp.x + 35, gp.y + 96);
+  }
+
+  // The menu, along the bottom.
+  const mp = MENU_PANEL;
+  panel(ctx, mp.x, mp.y, mp.w, mp.h);
+  drawMenu(ctx, "paused", items, focus === "menu" ? cursor : -1, sprites, time);
+  text(ctx, "Progress saves in every new room.", SCREEN_W / 2, mp.y + 27, PANEL_EDGE, "center");
+}
+
+const ERRAND_NAMES = { letter: "Letter", reply: "Reply", ring: "Ring" };
+
+// A piece of gear: its icon in a box and its name, or an empty box and
+// "???" until it's found.
+function gearRow(ctx: CanvasRenderingContext2D, x: number, y: number, label: string, icon: Sprite | null): void {
+  rect(ctx, x, y, 22, 22, SHADOW);
+  rect(ctx, x + 1, y + 1, 20, 20, "#262064");
+  if (icon) blit(ctx, icon, x + 11 - icon.w / 2, y + 11 - icon.h / 2);
+  text(ctx, icon ? label : "???", x + 27, y + 8, icon ? INK : PANEL_EDGE);
+}
+
+// The classic item cursor: four corner brackets, pulsing outward.
+function selectionCorners(ctx: CanvasRenderingContext2D, r: Rect, out: number, color: string): void {
+  const x0 = r.x - 2 - out;
+  const y0 = r.y - 2 - out;
+  const x1 = r.x + r.w + 1 + out;
+  const y1 = r.y + r.h + 1 + out;
+  for (const [x, y, dx, dy] of [
+    [x0, y0, 1, 1],
+    [x1, y0, -1, 1],
+    [x0, y1, 1, -1],
+    [x1, y1, -1, -1],
+  ]) {
+    rect(ctx, Math.min(x, x + dx * 4), y, 5, 1, color);
+    rect(ctx, x, Math.min(y, y + dy * 4), 1, 5, color);
+  }
+}
+
+export function toolIcon(sprites: Sprites, tool: ToolId): Sprite {
+  switch (tool) {
+    case "switcheroo":
+      return sprites.wand.right;
+  }
 }
 
 export function drawGameOver(ctx: CanvasRenderingContext2D, items: MenuItem[], cursor: number, sprites: Sprites, time: number): void {

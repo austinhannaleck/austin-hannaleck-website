@@ -1,7 +1,7 @@
 import type { MusicTrack } from "../engine/world";
 import { MUSIC_LEVEL, audioGraph, whiteNoise } from "./context";
 
-// A little 16-bit-style sound chip and five original themes.
+// A little 16-bit-style sound chip and seven original themes.
 //
 // Each song is written as a melody (one token per eighth note: a note like
 // "F#5", "-" to hold, "." to rest) over a chord per bar. The bass line and
@@ -22,7 +22,7 @@ type Voice =
   | { kind: "fm"; ratio: number; index: number; decay: number; gain: number; release: number; vibrato?: number }
   | { kind: "triangle"; gain: number; release: number };
 
-type BassStyle = "pump" | "rootFifth" | "drive" | "arp";
+type BassStyle = "pump" | "rootFifth" | "drive" | "arp" | "grind";
 
 type Song = {
   bpm: number;
@@ -74,6 +74,24 @@ const SONGS: Record<TrackName, Song> = {
     arp: { kind: "pulse", duty: 0.125, gain: 0.025, release: 0.03 },
     echo: 0.2,
   },
+  // Fernwhistle: a market-day oom-pah in G, all reedy squeezebox lead
+  // and bouncing bass, for a town that's finally got visitors again.
+  town: {
+    bpm: 126,
+    swing: 0.18,
+    chords: "G C G D Em C D G C G Am D Em C D G",
+    melody: `
+      G4 . B4 D5 G5 - D5 B4 | C5 - E5 - G5 - E5 C5 | B4 - D5 B4 G4 - B4 D5 | A4 - - - D5 - . . |
+      E5 - G5 E5 B4 - E5 G5 | G5 - E5 C5 E5 - G5 - | F#5 - E5 D5 A4 - F#4 - | G4 - - - . . D5 . |
+      E5 - E5 - G5 - E5 - | D5 - D5 - B4 - G4 - | C5 - E5 - A5 - G5 E5 | F#5 - - - D5 - . . |
+      G5 - F#5 - E5 - B4 - | C5 - E5 - G5 - C6 - | A5 - F#5 - D5 - F#5 - | G5 - - - D5 - B4 - |`,
+    bass: "pump",
+    drums: "k.s.k.sh",
+    lead: { kind: "fm", ratio: 2, index: 1.3, decay: 0.4, gain: 0.12, release: 0.08, vibrato: 1 },
+    bassVoice: { kind: "triangle", gain: 0.28, release: 0.05 },
+    arp: { kind: "pulse", duty: 0.25, gain: 0.022, release: 0.03 },
+    echo: 0.22,
+  },
   // Out in the fields: brisk and adventurous, in D.
   overworld: {
     bpm: 132,
@@ -105,6 +123,24 @@ const SONGS: Record<TrackName, Song> = {
     bassVoice: { kind: "triangle", gain: 0.24, release: 0.12 },
     arp: null,
     echo: 0.45,
+  },
+  // Trapped: shutters down, monsters closing in, or Captain Clank. A low,
+  // lurking line in C minor over a bass grinding on the half step above
+  // the root, with the Neapolitan and a tritone or two for menace.
+  danger: {
+    bpm: 132,
+    chords: "Cm Cm C# Cm Cm Cm G# G Fm Fm Cm Cm G# F#dim G G",
+    melody: `
+      C4 . C4 . D#4 - C4 . | G4 - F#4 - G4 . . . | G#4 - F4 - C#4 - . . | D#4 - D4 - C4 - B3 - |
+      C5 . C5 . D#5 - C5 . | G5 - F#5 - G5 . . . | G#5 - G5 - D#5 - C5 - | D5 - - - B4 - G4 - |
+      F5 - G#5 - C6 - G#5 - | G5 - F5 - D#5 - C#5 - | C5 - D#5 - G5 - F#5 - | G5 - - - . . . . |
+      G#5 - G5 - G#5 - C6 - | A5 - F#5 - D#5 - C5 - | B4 - D5 - G5 - F5 - | D5 - B4 - G4 - B4 - |`,
+    bass: "grind",
+    drums: "k..ks.h.",
+    lead: { kind: "fm", ratio: 1, index: 3.6, decay: 0.14, gain: 0.12, release: 0.06 },
+    bassVoice: { kind: "fm", ratio: 1, index: 2.2, decay: 0.1, gain: 0.24, release: 0.04 },
+    arp: { kind: "pulse", duty: 0.125, gain: 0.02, release: 0.02 },
+    echo: 0.32,
   },
   // Boss fights: fast and driving, in E minor.
   boss: {
@@ -192,6 +228,9 @@ function bassBar(style: BassStyle, root: number, tones: number[]): (number | nul
       return [low, low, low + 12, low, low, low, tones[1] - 12, low];
     case "arp":
       return [low, fifth, low + 12, fifth + 12, low + 12, fifth, low, fifth];
+    // Grinding back and forth on the half step above the root.
+    case "grind":
+      return [low, low, low + 1, low, low + 12, low, low + 1, low];
   }
 }
 

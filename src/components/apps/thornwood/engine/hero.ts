@@ -5,8 +5,10 @@ import { damageEnemy, startDying } from "./combat";
 import { vectorOf } from "./directions";
 import { addHitStop, playSound, spawnBurst } from "./effects";
 import { bumpDoorAhead, tryInteract } from "./interact";
+import { settleEquipped } from "./inventory";
 import { fireBolt, heroBoltActive, removeProjectile } from "./projectiles";
-import { blockers, heroSolidAt, tileAt } from "./room";
+import { blockers, heroSolidAt, roomPixels, tileAt } from "./room";
+import { startDive, updateSwimming } from "./swim";
 import { toggleSwitch } from "./switches";
 import { isPit, isWarp } from "./tiles";
 import { startScroll, startWarp } from "./transitions";
@@ -18,12 +20,11 @@ import {
   HERO_CHARGE_SPEED,
   HERO_SPEED,
   HURT_INVULN_FRAMES,
-  ROOM_H,
-  ROOM_W,
   SPIN_CHARGE_FRAMES,
   SPIN_DAMAGE,
   SPIN_FRAMES,
   SPIN_RADIUS,
+  SWIM_SPEED,
   SWING_FRAMES,
   SWORD_DAMAGE,
   TILE,
@@ -123,6 +124,7 @@ export function updateHero(state: GameState, input: Input): void {
     moveBox(hero, kb.vx, kb.vy, heroSolidAt(state), blockers(state));
     if (--kb.frames <= 0) hero.knockback = null;
     hero.moving = false;
+    updateSwimming(state);
     checkPit(state);
     return;
   }
@@ -143,12 +145,18 @@ export function updateHero(state: GameState, input: Input): void {
   }
 
   walk(state, input);
+  updateSwimming(state);
 
-  if (hero.action === "none") {
+  // In the water, the sword button dives instead, and tools stay dry.
+  // Underwater, nothing at all.
+  if (hero.action === "none" && hero.dive === 0) {
     if (input.pressed.sword) {
-      if (!tryInteract(state) && state.inventory.hasSword) startSwing(state);
-    } else if (input.pressed.tool) {
-      startCast(state);
+      if (!tryInteract(state)) {
+        if (hero.swimming) startDive(state);
+        else if (state.inventory.owned.has("sword")) startSwing(state);
+      }
+    } else if (input.pressed.tool && !hero.swimming) {
+      fireTool(state);
     }
   }
   if (state.dialog) return;
@@ -169,7 +177,7 @@ function walk(state: GameState, input: Input): void {
   }
   // Charging locks your facing, so you can strafe with the sword held out.
   if (!charging) hero.facing = pickFacing(hero.facing, dx, dy);
-  const base = charging ? HERO_CHARGE_SPEED : HERO_SPEED;
+  const base = hero.swimming ? SWIM_SPEED : charging ? HERO_CHARGE_SPEED : HERO_SPEED;
   const speed = dx !== 0 && dy !== 0 ? base * Math.SQRT1_2 : base;
   const solid = heroSolidAt(state);
   const walls = blockers(state);
@@ -251,9 +259,20 @@ function awayFrom(from: Point, to: Point): Point {
   return { x: dx / len, y: dy / len };
 }
 
+function fireTool(state: GameState): void {
+  settleEquipped(state.inventory);
+  switch (state.inventory.equipped) {
+    case "switcheroo":
+      startCast(state);
+      return;
+    case null:
+      return;
+  }
+}
+
 function startCast(state: GameState): void {
   const hero = state.hero;
-  if (!state.inventory.hasSwitcheroo || heroBoltActive(state)) return;
+  if (!state.inventory.owned.has("switcheroo") || heroBoltActive(state)) return;
   hero.action = "cast";
   hero.actionFrame = 0;
   playSound(state, "cast");
@@ -349,11 +368,12 @@ function updateFall(state: GameState): void {
 
 function checkExits(state: GameState): void {
   const hero = state.hero;
+  const room = roomPixels(state);
   let dir: Direction | null = null;
   if (hero.x < 0) dir = "left";
-  else if (hero.x + hero.w > ROOM_W) dir = "right";
+  else if (hero.x + hero.w > room.w) dir = "right";
   else if (hero.y < 0) dir = "up";
-  else if (hero.y + hero.h > ROOM_H) dir = "down";
+  else if (hero.y + hero.h > room.h) dir = "down";
   if (dir) {
     startScroll(state, dir);
     return;

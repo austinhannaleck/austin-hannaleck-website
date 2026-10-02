@@ -240,3 +240,16 @@ export const WAND = [
   "..........v...",
   "..............",
 ];
+
+// The hero's head, blinking on the map to say "you are here".
+export const MAP_ICON = [
+  "..........",
+  "....jh....",
+  "..hhjjhh..",
+  ".hhhhhhhH.",
+  ".hsessesH.",
+  ".hssssssH.",
+  "..SsxxsS..",
+  "..qrrrrR..",
+  "..........",
+];

@@ -7,6 +7,7 @@ import { playSound, spawnBurst } from "./effects";
 import { directionToHero, rest, walkEnemy } from "./motion";
 import { spawnProjectile } from "./projectiles";
 import { random, randomInt, randomPick } from "./rng";
+import { underwater } from "./swim";
 import { DIRECTIONS, type Box, type Direction, type Enemy, type GameState } from "./types";
 
 // The regular cast of baddies:
@@ -14,6 +15,9 @@ import { DIRECTIONS, type Box, type Direction, type Enemy, type GameState } from
 //   Flitter  a bat that swoops at you in bursts, over water and pits
 //   Knight   patrols until it spots you, then marches straight at you
 //   Spitbug  stops, turns to face you, and spits seeds
+//
+// None of them can see you underwater (with the Flippers): while you're
+// diving they lose track of you and just mill about.
 
 export function updateEnemies(state: GameState): void {
   for (const e of [...state.enemies]) {
@@ -100,7 +104,7 @@ function updateJellop(state: GameState, e: Enemy): void {
     if (hitX || hitY || --e.timer <= 0) rest(state, e, 30, 70);
   } else if (--e.timer <= 0) {
     e.mode = "move";
-    e.facing = random(state) < 0.4 ? directionToHero(state, e) : randomPick(state, DIRECTIONS);
+    e.facing = random(state) < 0.4 && !underwater(state.hero) ? directionToHero(state, e) : randomPick(state, DIRECTIONS);
     e.timer = randomInt(state, 30, 60);
   }
   e.angle = angleOf(e.facing);
@@ -108,8 +112,10 @@ function updateJellop(state: GameState, e: Enemy): void {
 
 const FLITTER_SPEED = 1.1;
 
+// Swoops roughly at you, or anywhere at all if it can't see you.
 function aimFlitter(state: GameState, e: Enemy): void {
-  const a = angleToward(centerOf(e), centerOf(state.hero)) + (random(state) - 0.5) * 1.6;
+  const wobble = (random(state) - 0.5) * 1.6;
+  const a = underwater(state.hero) ? random(state) * Math.PI * 2 : angleToward(centerOf(e), centerOf(state.hero)) + wobble;
   e.vx = Math.sin(a) * FLITTER_SPEED;
   e.vy = Math.cos(a) * FLITTER_SPEED;
   e.mode = "move";
@@ -139,9 +145,9 @@ function updateKnight(state: GameState, e: Enemy): void {
   const from = centerOf(e);
   const to = centerOf(state.hero);
   const dist = distance(from, to);
-  const heroAlive = state.hero.action !== "dying";
-  if (heroAlive && e.mode !== "chase" && dist < KNIGHT_SIGHT) e.mode = "chase";
-  if (e.mode === "chase" && (dist > KNIGHT_SIGHT * 1.7 || !heroAlive)) rest(state, e, 20, 40);
+  const inSight = state.hero.action !== "dying" && !underwater(state.hero);
+  if (inSight && e.mode !== "chase" && dist < KNIGHT_SIGHT) e.mode = "chase";
+  if (e.mode === "chase" && (dist > KNIGHT_SIGHT * 1.7 || !inSight)) rest(state, e, 20, 40);
 
   switch (e.mode) {
     case "chase": {
@@ -199,7 +205,7 @@ function updateSpitbug(state: GameState, e: Enemy): void {
     default:
       if (--e.timer <= 0) {
         const dist = distance(centerOf(e), centerOf(state.hero));
-        if (dist < 150 && random(state) < 0.55) {
+        if (dist < 150 && random(state) < 0.55 && !underwater(state.hero)) {
           e.mode = "windup";
           e.timer = 24;
           e.facing = directionToHero(state, e);

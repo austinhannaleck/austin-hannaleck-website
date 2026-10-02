@@ -372,3 +372,270 @@ const GHOST_TOP = [
 
 export const GHOST_A = [...GHOST_TOP, "..wwE.wwE.wwE...", "..wE...wE...wE..", "................"];
 export const GHOST_B = [...GHOST_TOP, "...wwE.wwE.wwE..", "...wE...wE...wE.", "................"];
+
+// ---------------------------------------------------------------------------
+// Mossbeard: Bramblekeep's retired gatekeeper, a mole in a miner's helmet
+// with a beard so old it's gone mossy.
+// ---------------------------------------------------------------------------
+export const MOSSBEARD = [
+  "................",
+  "................",
+  ".....yyzzyy.....",
+  "....yyyzzyyy....",
+  "....yyyyyyyy....",
+  "...YYYYYYYYYY...",
+  "...NnnnnnnnnN...",
+  "...NnennnnenN...",
+  "...NnnnffnnnN...",
+  "...NnnnFFnnnN...",
+  "..fgglgggglggf..",
+  "...gGggggggGg...",
+  "...ggggGgggGg...",
+  "....gGgggGgg....",
+  "....NgGggGgN....",
+  "....NNgGggNN....",
+  "....NNNggNNN....",
+  "....NNNNNNNN....",
+  ".....NN..NN.....",
+  ".....ff..ff.....",
+  "................",
+  "................",
+  "................",
+  "................",
+];
+
+// ---------------------------------------------------------------------------
+// Cap'n Pinch: a retired pirate crab, hat and all.
+// ---------------------------------------------------------------------------
+export const PINCH = [
+  "..................",
+  ".......eeee.......",
+  "......eeweee......",
+  ".....eeeeeeee.....",
+  "......w....w......",
+  "..qq..R....R..qq..",
+  ".qrrq.rrrrrr.qrrq.",
+  "..rRrrrqqrrrrrRr..",
+  "...R.rrrrrrrrr.R..",
+  ".....RrrrrrrR.....",
+  "....r.R.RR.R.r....",
+  "...r..........r...",
+  "..................",
+  "..................",
+  "..................",
+  "..................",
+];
+
+// ===========================================================================
+// Fernwhistle
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Mama Mallard: a plump white duck in a blue bonnet and a pink apron.
+// ---------------------------------------------------------------------------
+export const MALLARD = [
+  "................",
+  "......bbbb......",
+  "....bbccccbb....",
+  "...bBwwwwwwBb...",
+  "...bwwewwewwb...",
+  "...Bwwwoowwwb...",
+  "...rBwOooOwBr...",
+  "....rwwOOwwr....",
+  ".....wwwwww.....",
+  "...EwwwwwwwwE...",
+  "..EwwwffffwwwE..",
+  "..EwwffffffwwE..",
+  "..DEwffffffwED..",
+  "...DwwffffwwD...",
+  "....wwwwwwww....",
+  ".....DwwwwD.....",
+  ".....oo..oo.....",
+  "....ooo..ooo....",
+  "................",
+];
+
+// ---------------------------------------------------------------------------
+// A duckling: a tiny yellow fluffball. Two waddling frames.
+// ---------------------------------------------------------------------------
+export const DUCKLING_A = [
+  "..........",
+  "...yzzy...",
+  "..yyyyyy..",
+  "..yeyyey..",
+  "..yyooyy..",
+  "...yyyy...",
+  "..yyyyyyY.",
+  "..YyyyyyY.",
+  "...YyyyY..",
+  "...o..o...",
+  "..........",
+];
+
+export const DUCKLING_B = [
+  "..........",
+  "..........",
+  "...yzzy...",
+  "..yyyyyy..",
+  "..yeyyey..",
+  "..yyooyy..",
+  "..yyyyyyY.",
+  "..YyyyyyY.",
+  "...YyyyY..",
+  "..o....o..",
+  "..........",
+];
+
+// ---------------------------------------------------------------------------
+// Postmaster Pidge: a pigeon in a postman's cap, with a mail satchel.
+// ---------------------------------------------------------------------------
+export const PIDGE = [
+  "................",
+  ".....TTTTTT.....",
+  "....TTtyytTT....",
+  "...TTTTTTTTTT...",
+  ".....DEEEED.....",
+  "....DEeEEeED....",
+  "....DEECCEED....",
+  ".....DgEEgD.....",
+  "....pgpgpgpp....",
+  "...DEnEEEEEED...",
+  "..DEEEnEEEEEED..",
+  "..DDEEEnEEnnND..",
+  "..CDEEEEnnNNNC..",
+  "...CDEEEnNNNN...",
+  "....CDDDDDDC....",
+  ".....ff..ff.....",
+  "................",
+];
+
+// ---------------------------------------------------------------------------
+// Marigold: Mossbeard's little sister, a mole in a lilac headscarf and a
+// green dress with an apron.
+// ---------------------------------------------------------------------------
+export const MARIGOLD = [
+  "................",
+  "................",
+  ".....pppppp.....",
+  "....pvvvvvvp....",
+  "...pvvvpvvvvp...",
+  "...pNnnnnnnNp...",
+  "...NnennnnenN...",
+  "...NnnnffnnnN...",
+  "...NnnnFFnnnN...",
+  "....NnnnnnnN.p..",
+  "....ggwwwwgg.p..",
+  "...gggwwwwggg...",
+  "..fgggwwwwgggf..",
+  "...gggwwwwggg...",
+  "...gGgwwwwgGg...",
+  "....GggggggG....",
+  "....NNNNNNNN....",
+  ".....NN..NN.....",
+  ".....ff..ff.....",
+  "................",
+];
+
+// ---------------------------------------------------------------------------
+// Mayor Bellwether: a woolly sheep in a top hat, wearing the gold chain
+// of office.
+// ---------------------------------------------------------------------------
+export const BELLWETHER = [
+  "................",
+  "......eeee......",
+  "......eeee......",
+  "......rrrr......",
+  "....eeeeeeee....",
+  "...wwwEwwEwww...",
+  "..CwwCCCCCCwwC..",
+  "...wCwCCCCwCw...",
+  "....wCCCCCCw....",
+  ".....CCDDCC.....",
+  "....wwyyyyww....",
+  "..wwwwwyywwwww..",
+  ".wwEwwwyzwwwEww.",
+  ".wwEwwwwwwwwEww.",
+  "..wwwwwwwwwwww..",
+  "..EwwwwwwwwwwE..",
+  "...EEwwwwwwEE...",
+  "....CC....CC....",
+  "....CC....CC....",
+  "................",
+];
+
+// ---------------------------------------------------------------------------
+// A bunny kid: Tilly and her hide-and-seek gang are all this one, recolored.
+// ---------------------------------------------------------------------------
+export const BUNNY = [
+  "................",
+  ".....mf..fm.....",
+  ".....mf..fm.....",
+  ".....mf..fm.....",
+  ".....mm..mm.....",
+  "....mmmmmmmm....",
+  "...mmmmmmmmmm...",
+  "...mmemmmmemm...",
+  "...mmmmffmmmm...",
+  "....wmmmmmmw....",
+  ".....mmmmmm.....",
+  "....rrrrrrrr....",
+  "...mrrrrrrrrm...",
+  "...mrRrrrrRrm...",
+  "....rrrrrrrr....",
+  "....RRRRRRRR....",
+  ".....mm..mm.....",
+  ".....ww..ww.....",
+  "................",
+];
+
+// ---------------------------------------------------------------------------
+// Bun: Fernwhistle's baker, a bear in a tall white hat and a floury apron.
+// ---------------------------------------------------------------------------
+export const BUN = [
+  "................",
+  ".....wwwwww.....",
+  "....wwwwwwww....",
+  "....wwwwwwww....",
+  "....Ewwwwwww....",
+  "...nnEEEEEEnn...",
+  "...nNnnnnnnNn...",
+  "...nnennnnenn...",
+  "...nnnmmmmnnn...",
+  "....nnmeemnn....",
+  ".....nmmmmn.....",
+  "...nnwwwwwwnn...",
+  "..nnnwwwwwwnnn..",
+  "..mnnwwEEwwnnm..",
+  "...nnwwwwwwnn...",
+  "...nnwwwwwwnn...",
+  "....nnnnnnnn....",
+  "....NN....NN....",
+  "................",
+];
+
+// ---------------------------------------------------------------------------
+// Ott: the miller, who went fishing four months ago and never stopped. An
+// otter in a yellow rain hat and coat, rod in hand.
+// ---------------------------------------------------------------------------
+export const OTT = [
+  ".................",
+  "...............N.",
+  "....yyyyyyy....N.",
+  "...yyzzzzzyy..N..",
+  "..YYYYYYYYYYY.N..",
+  "....nnnnnnn...N..",
+  "...nnmmmmmnn..N..",
+  "...nemmmmmen.N...",
+  "...nmmmeemmn.N...",
+  "....nmmwwmmn.N...",
+  ".....nnnnnn..N...",
+  "....yyyyyyyy.N...",
+  "...yyyyyyyyyyN...",
+  "..nyyyyyyyyyyN...",
+  "...yyyyyyyyyN....",
+  "...YyyyyyyyY.....",
+  "....YYYYYYYY.....",
+  ".....nn..nn......",
+  ".....NN..NN......",
+  ".................",
+];

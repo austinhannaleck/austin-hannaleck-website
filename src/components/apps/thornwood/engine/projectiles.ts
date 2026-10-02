@@ -3,14 +3,13 @@ import { boxHitsTiles, centerOf, findFreeSpot, overlaps } from "./collision";
 import { hurtHero } from "./combat";
 import { vectorOf } from "./directions";
 import { addHitStop, nextId, playSound, spawnBurst } from "./effects";
-import { blocksShotAt, flyerSolidAt, heroSolidAt, tileAt, walkerSolidAt } from "./room";
+import { blocksShotAt, flyerSolidAt, heroSolidAt, roomPixels, tileAt, walkerSolidAt } from "./room";
+import { outOfReach } from "./swim";
 import { toggleSwitch } from "./switches";
 import {
   BOLT_RANGE,
   BOLT_SIZE,
   BOLT_SPEED,
-  ROOM_H,
-  ROOM_W,
   SWAP_STUN_FRAMES,
   TILE,
   type Enemy,
@@ -38,8 +37,9 @@ export function fireBolt(state: GameState): void {
   spawnProjectile(state, "bolt", c.x + v.x * 8, c.y + v.y * 8, v.x * BOLT_SPEED, v.y * BOLT_SPEED);
 }
 
-function outOfRoom(p: Projectile): boolean {
-  return p.x + p.w < 0 || p.y + p.h < 0 || p.x > ROOM_W || p.y > ROOM_H;
+function outOfRoom(state: GameState, p: Projectile): boolean {
+  const room = roomPixels(state);
+  return p.x + p.w < 0 || p.y + p.h < 0 || p.x > room.w || p.y > room.h;
 }
 
 function shotBlocked(state: GameState, p: Projectile): boolean {
@@ -57,12 +57,13 @@ export function updateProjectiles(state: GameState): void {
       continue;
     }
     const c = centerOf(p);
-    if (outOfRoom(p) || shotBlocked(state, p)) {
+    if (outOfRoom(state, p) || shotBlocked(state, p)) {
       removeProjectile(state, p);
       spawnBurst(state, c.x, c.y, { count: 5, colors: [0xb08a5a, 0x8c6b45], speed: 1, life: 14, size: 1.2 });
       continue;
     }
-    if (overlaps(p, state.hero)) {
+    // Shots skim right over a diver.
+    if (overlaps(p, state.hero) && !outOfReach(state.hero)) {
       removeProjectile(state, p);
       hurtHero(state, p.kind === "thorn" ? 2 : 1, c);
     }
@@ -95,7 +96,7 @@ function updateBolt(state: GameState, bolt: Projectile): void {
     return;
   }
 
-  if (outOfRoom(bolt) || shotBlocked(state, bolt) || bolt.traveled >= BOLT_RANGE) {
+  if (outOfRoom(state, bolt) || shotBlocked(state, bolt) || bolt.traveled >= BOLT_RANGE) {
     removeProjectile(state, bolt);
     playSound(state, "fizzle");
     spawnBurst(state, c.x, c.y, { count: 8, colors: [0xc9a2ff, 0x8f6bd8], speed: 1, life: 18, size: 1.4 });

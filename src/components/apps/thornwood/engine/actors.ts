@@ -1,6 +1,6 @@
 import { nextId } from "./effects";
 import { random, randomInt } from "./rng";
-import { boxAtTile } from "./world";
+import { boxAtTile, type NpcSpawn } from "./world";
 import {
   DROP_LIFETIME,
   type BossId,
@@ -75,9 +75,33 @@ export function createEnemy(state: GameState, kind: EnemyKind, col: number, row:
   };
 }
 
-export function createNpc(state: GameState, kind: NpcKind, col: number, row: number, wanders: boolean): Npc {
-  const { x, y } = boxAtTile(col, row, 12, 12);
-  return { id: nextId(state), kind, x, y, w: 12, h: 12, facing: "down", wanders, vx: 0, vy: 0, timer: 30, anim: 0, talkFrames: 0 };
+// Ducklings are little.
+function npcSize(kind: NpcKind): number {
+  return kind === "duckling" ? 8 : 12;
+}
+
+export function createNpc(state: GameState, spawn: NpcSpawn, roomId: string): Npc {
+  const size = npcSize(spawn.kind);
+  const { x, y } = boxAtTile(spawn.col, spawn.row, size, size);
+  const home = spawn.home?.roomId === roomId ? boxAtTile(spawn.home.col, spawn.home.row, size, size) : null;
+  return {
+    id: nextId(state),
+    kind: spawn.kind,
+    x,
+    y,
+    w: size,
+    h: size,
+    facing: "down",
+    wanders: spawn.wanders ?? false,
+    vx: 0,
+    vy: 0,
+    timer: 30,
+    anim: 0,
+    talkFrames: 0,
+    tag: spawn.tag ?? null,
+    home,
+    fleeing: false,
+  };
 }
 
 export function createProp(state: GameState, kind: PropKind, col: number, row: number): Prop {

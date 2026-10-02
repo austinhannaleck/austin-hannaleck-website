@@ -1,18 +1,41 @@
-import { DIRECTIONS, HERO_SIZE, HERO_START_HP, HP_CAP, ROOM_H, ROOM_W, type Direction, type GameState, type Spawn } from "./types";
-import { ROOMS } from "./world";
+import { noKeys } from "./inventory";
+import {
+  DIRECTIONS,
+  DUNGEONS,
+  HERO_SIZE,
+  HERO_START_HP,
+  HP_CAP,
+  KEPT_ITEMS,
+  TILE,
+  TOOLS,
+  type Direction,
+  type Dungeon,
+  type DungeonKeys,
+  type GameState,
+  type KeptItem,
+  type Spawn,
+  type ToolId,
+} from "./types";
+import { ROOMS, roomSize } from "./world";
 
 // What gets written to localStorage: inventory, progress flags, and the
 // spot you'll continue from. Rooms themselves aren't saved (they reset on
 // every visit anyway).
+//
+// Changing this shape means bumping SAVE_VERSION and adding a step to
+// MIGRATIONS below that turns the old shape into the new one, so nobody's
+// saved game gets thrown away.
+export const SAVE_VERSION = 2;
+
 export type SaveData = {
-  version: 1;
+  version: typeof SAVE_VERSION;
   respawn: Spawn;
   maxHp: number;
   gems: number;
-  smallKeys: number;
-  hasSword: boolean;
-  hasSwitcheroo: boolean;
-  hasBigKey: boolean;
+  owned: KeptItem[];
+  keys: Record<Dungeon, DungeonKeys>;
+  gateKey: boolean;
+  equipped: ToolId | null;
   flags: string[];
   frames: number;
   deaths: number;
@@ -21,14 +44,14 @@ export type SaveData = {
 export function snapshotSave(state: GameState): SaveData {
   const inv = state.inventory;
   return {
-    version: 1,
+    version: SAVE_VERSION,
     respawn: { ...state.respawn },
     maxHp: state.hero.maxHp,
     gems: inv.gems,
-    smallKeys: inv.smallKeys,
-    hasSword: inv.hasSword,
-    hasSwitcheroo: inv.hasSwitcheroo,
-    hasBigKey: inv.hasBigKey,
+    owned: KEPT_ITEMS.filter((item) => inv.owned.has(item)),
+    keys: structuredClone(inv.keys),
+    gateKey: inv.gateKey,
+    equipped: inv.equipped,
     flags: [...state.flags].sort(),
     frames: state.frame,
     deaths: state.deaths,
@@ -48,22 +71,73 @@ function clampInt(value: unknown, min: number, max: number, fallback: number): n
   return n === null ? fallback : Math.min(max, Math.max(min, Math.round(n)));
 }
 
-// Whatever's in a player's browser could be stale, hand-edited, or junk,
-// so every field is checked and clamped. A save that can't be trusted to
-// put you somewhere real comes back null, and the game starts fresh.
-export function sanitizeSave(raw: unknown): SaveData | null {
-  if (!isRecord(raw) || raw.version !== 1 || !isRecord(raw.respawn)) return null;
+type RawSave = Record<string, unknown>;
+
+// Each step brings a save from its version up to the next one. Steps work
+// on raw, unchecked data (sanitizeSave checks the end result), and they're
+// never edited once released: real saves in players' browsers depend on them.
+const MIGRATIONS: Record<number, (save: RawSave) => RawSave> = {
+  // Version 1 had a has<Item> boolean for each item, and one small key
+  // count and big key for the whole game (Bramblekeep was the only
+  // dungeon then). It also let you keep the big key and the Gate Key after
+  // they'd opened their doors, so those only carry over if their door is
+  // still shut.
+  1: (save) => {
+    const flags = Array.isArray(save.flags) ? save.flags : [];
+    const unused = (key: unknown, door: string) => key === true && !flags.includes(door);
+    return {
+      ...save,
+      version: 2,
+      owned: Object.entries({ hasSword: "sword", hasSwitcheroo: "switcheroo", hasFlippers: "flippers" })
+        .filter(([field]) => save[field] === true)
+        .map(([, item]) => item),
+      keys: {
+        bramblekeep: { small: save.smallKeys, big: unused(save.hasBigKey, "door:bramblekeep:1,1:7,0") },
+      },
+      gateKey: unused(save.hasGateKey, "door:overworld:1,0:7,2"),
+    };
+  },
+};
+
+function migrate(save: RawSave): RawSave | null {
+  while (save.version !== SAVE_VERSION) {
+    const step = typeof save.version === "number" ? MIGRATIONS[save.version] : undefined;
+    if (!step) return null;
+    save = step(save);
+  }
+  return save;
+}
+
+function sanitizeKeys(raw: unknown): Record<Dungeon, DungeonKeys> {
+  const keys = noKeys();
+  if (!isRecord(raw)) return keys;
+  for (const dungeon of DUNGEONS) {
+    const found = raw[dungeon];
+    if (isRecord(found)) keys[dungeon] = { small: clampInt(found.small, 0, 9, 0), big: found.big === true };
+  }
+  return keys;
+}
+
+// Whatever's in a player's browser could be old, hand-edited, or junk.
+// Old saves are migrated forward, then every field is checked and clamped.
+// A save that can't be trusted to put you somewhere real comes back null,
+// and the game starts fresh.
+export function sanitizeSave(input: unknown): SaveData | null {
+  const raw = isRecord(input) ? migrate(input) : null;
+  if (!raw || !isRecord(raw.respawn)) return null;
   const { roomId, x, y, facing } = raw.respawn;
   if (typeof roomId !== "string" || !(roomId in ROOMS)) return null;
   const px = finiteNumber(x);
   const py = finiteNumber(y);
   if (px === null || py === null) return null;
-  if (px < 0 || py < 0 || px > ROOM_W - HERO_SIZE || py > ROOM_H - HERO_SIZE) return null;
+  const { cols, rows } = roomSize(roomId);
+  if (px < 0 || py < 0 || px > cols * TILE - HERO_SIZE || py > rows * TILE - HERO_SIZE) return null;
 
   // Heart containers come in whole hearts (two halves each).
   const maxHp = clampInt(raw.maxHp, HERO_START_HP, HP_CAP, HERO_START_HP);
+  const owned = Array.isArray(raw.owned) ? raw.owned : [];
   return {
-    version: 1,
+    version: SAVE_VERSION,
     respawn: {
       roomId,
       x: px,
@@ -72,10 +146,12 @@ export function sanitizeSave(raw: unknown): SaveData | null {
     },
     maxHp: maxHp - (maxHp % 2),
     gems: clampInt(raw.gems, 0, 999, 0),
-    smallKeys: clampInt(raw.smallKeys, 0, 9, 0),
-    hasSword: raw.hasSword === true,
-    hasSwitcheroo: raw.hasSwitcheroo === true,
-    hasBigKey: raw.hasBigKey === true,
+    // Kept in KEPT_ITEMS order, which also drops unknown names and repeats.
+    owned: KEPT_ITEMS.filter((item) => owned.includes(item)),
+    keys: sanitizeKeys(raw.keys),
+    gateKey: raw.gateKey === true,
+    // Whether it's actually owned is settled when the game loads.
+    equipped: TOOLS.includes(raw.equipped as ToolId) ? (raw.equipped as ToolId) : null,
     flags: Array.isArray(raw.flags) ? raw.flags.filter((f): f is string => typeof f === "string") : [],
     frames: clampInt(raw.frames, 0, Number.MAX_SAFE_INTEGER, 0),
     deaths: clampInt(raw.deaths, 0, 1_000_000, 0),

@@ -1,8 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { BOSS_NAMES } from "../../engine/actors";
-import { BIG_DOOR_LOCKED_PAGES, DOOR_LOCKED_PAGES, SHOP_TOO_POOR_PAGES, itemGetPages, npcDialog } from "../../engine/dialogue";
+import {
+  BED_NO_PAGES,
+  BELL_LINES,
+  BUN_PAGES,
+  INN_BED_PAGES,
+  QUAKE_PAGES,
+  BIG_DOOR_LOCKED_PAGES,
+  DOOR_LOCKED_PAGES,
+  GATE_LOCKED_PAGES,
+  SHOP_TOO_POOR_PAGES,
+  WARES_NO_PAGES,
+  WARES_PAGES,
+  WARES_SOLD_PAGES,
+  itemGetPages,
+  npcDialog,
+} from "../../engine/dialogue";
 import { createGame } from "../../engine/engine";
+import { DUCKLINGS, HIDERS } from "../../engine/quests";
 import { flags } from "../../engine/room";
+import { DUCKLING_CAUGHT_PAGES } from "../../engine/townsfolk";
 import { ROOMS } from "../../engine/world";
 import type { ItemId, NpcKind } from "../../engine/types";
 import { PALETTE } from "../palette";
@@ -26,7 +43,7 @@ function artIn(module: Record<string, unknown>): ArtMap {
 
 // Full-tile art (doors, bars) and glowing effects are drawn without the
 // automatic outline, so they don't need a transparent margin.
-const UNOUTLINED = new Set(["DOOR", "BARS", "FLAME", "FLAME_TALL", "BOLT_A", "BOLT_B", "STAR", "SPARKLE"]);
+const UNOUTLINED = new Set(["DOOR", "GATE", "BARS", "FLAME", "FLAME_TALL", "BOLT_A", "BOLT_B", "STAR", "SPARKLE"]);
 
 const ALL_ART: ArtMap = {
   ...artIn(hero),
@@ -89,21 +106,84 @@ describe("the bitmap font", () => {
     for (const def of Object.values(ROOMS)) {
       texts.push(def.name);
       for (const pages of Object.values(def.signs ?? {})) texts.push(...pages);
+      for (const options of Object.values(def.examine ?? {})) texts.push(...options.flat());
+      texts.push(...(def.bed ?? []));
     }
-    const items: ItemId[] = ["sword", "switcheroo", "smallKey", "bigKey", "heartContainer", "sunstone", "gems"];
+    const items: ItemId[] = [
+      "sword",
+      "switcheroo",
+      "flippers",
+      "smallKey",
+      "bigKey",
+      "gateKey",
+      "heartContainer",
+      "sunstone",
+      "gems",
+      "letter",
+      "reply",
+      "ring",
+    ];
     for (const item of items) texts.push(...itemGetPages(item, 20));
-    texts.push(...DOOR_LOCKED_PAGES, ...BIG_DOOR_LOCKED_PAGES, ...SHOP_TOO_POOR_PAGES);
+    texts.push(...DOOR_LOCKED_PAGES, ...BIG_DOOR_LOCKED_PAGES, ...GATE_LOCKED_PAGES, ...SHOP_TOO_POOR_PAGES);
+    texts.push(...QUAKE_PAGES, ...BUN_PAGES, ...INN_BED_PAGES);
+    for (let caught = 1; caught <= DUCKLINGS.length; caught++) texts.push(...DUCKLING_CAUGHT_PAGES(caught, DUCKLINGS.length));
+    texts.push(...BED_NO_PAGES, ...WARES_PAGES, ...WARES_NO_PAGES, ...WARES_SOLD_PAGES, ...BELL_LINES.flat());
+    texts.push("Take a nap", "Not now", "Buy it", "Letter", "Reply", "Ring");
     for (const boss of Object.values(BOSS_NAMES)) texts.push(boss.name.toUpperCase(), boss.title.toUpperCase());
 
-    // Every NPC, before and after their story beats.
-    const kinds: NpcKind[] = ["nana", "banjo", "ribbit", "moanica", "fumbleton"];
-    for (const after of [false, true]) {
-      if (after) {
+    // Every NPC at every stage of the story, and of Fernwhistle's quests.
+    const kinds: NpcKind[] = [
+      "nana",
+      "banjo",
+      "ribbit",
+      "moanica",
+      "fumbleton",
+      "mossbeard",
+      "pinch",
+      "stout",
+      "mallard",
+      "duckling",
+      "pidge",
+      "marigold",
+      "bellwether",
+      "tilly",
+      "bo",
+      "pip",
+      "fern",
+      "bun",
+      "hopsworth",
+      "ott",
+    ];
+    const stages = [
+      () => {},
+      () => {
         game.flags.add(flags.nanaSword).add(flags.banjoGift).add(flags.shopHeart);
-        game.inventory.hasSwitcheroo = true;
-      }
+        game.inventory.gateKey = true;
+        game.flags.add(flags.chest("hollow:0,0", 7, 5));
+      },
+      () => {
+        game.inventory.owned.add("switcheroo");
+        game.inventory.owned.add("flippers");
+      },
+      () => {
+        game.flags.add(flags.sunstone).add(flags.chest("overworld:2,2", 10, 9)).add(flags.sunken("overworld:2,2", 4, 9));
+        game.flags.add(flags.boss("thornback")).add(flags.letter).add(flags.found(DUCKLINGS[0])).add(flags.found(HIDERS[0]));
+      },
+      () => {
+        game.flags.delete(flags.letter);
+        game.flags.add(flags.reply).add(flags.ring);
+        for (const tag of [...DUCKLINGS, ...HIDERS]) game.flags.add(flags.found(tag));
+      },
+      () => {
+        game.flags.delete(flags.reply);
+        game.flags.delete(flags.ring);
+        game.flags.add(flags.mailDelivered).add(flags.ringReturned).add(flags.ducklingsThanked).add(flags.seekPrize);
+      },
+    ];
+    for (const advance of stages) {
+      advance();
       for (const kind of kinds) {
-        const npc = { id: 0, kind, x: 0, y: 0, w: 12, h: 12, facing: "down" as const, wanders: false, vx: 0, vy: 0, timer: 0, anim: 0, talkFrames: 0 };
+        const npc = { id: 0, kind, x: 0, y: 0, w: 12, h: 12, facing: "down" as const, wanders: false, vx: 0, vy: 0, timer: 0, anim: 0, talkFrames: 0, tag: kind, home: null, fleeing: false };
         for (let i = 0; i < 6; i++) {
           const dialog = npcDialog(game, npc);
           texts.push(...dialog.pages, dialog.speaker ?? "", ...(dialog.choice?.options ?? []), ...(dialog.choice?.noPages ?? []));

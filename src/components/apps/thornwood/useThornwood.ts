@@ -3,13 +3,16 @@ import { setMuted, unlockAudio } from "./audio/context";
 import { playMusic } from "./audio/music";
 import { playSfx, playVictory } from "./audio/sfx";
 import { continueAfterDeath, createGame, keepPlaying, togglePause, update } from "./engine/engine";
+import { cycleTool, equipTool, ownedTools, settleEquipped } from "./engine/inventory";
 import { musicFor } from "./engine/soundtrack";
 import { snapshotSave } from "./engine/save";
-import { STEP_MS, noButtons, type Buttons, type GameState, type GameStatus } from "./engine/types";
+import { KEPT_ITEMS, STEP_MS, noButtons, type Buttons, type GameState, type GameStatus } from "./engine/types";
 import { PixelRenderer, SCREEN_H, type RenderUi } from "./render/PixelRenderer";
 import { SCREEN_W, dialogChoiceRects } from "./render/screens";
 import { loadBestFrames, loadMuted, loadSave, recordClearTime, saveMuted, writeSave } from "./saveStorage";
-import { hitTest, menuFor, menuLayout, wrapCursor, type MenuAction, type MenuItem } from "./ui/menu";
+import { ITEM_SLOT_COUNT, itemSlotRect, toolInSlot, type PauseFocus } from "./ui/inventory";
+import { AREA_TITLES, MAP_ARROWS, openMap, pageMap, type MapView } from "./ui/map";
+import { MAP_MENU, hitTest, menuFor, menuLayout, wrapCursor, type MenuAction, type MenuItem } from "./ui/menu";
 
 // The glue between the pure engine, the pixel renderer, the browser's
 // input devices, audio, and React. The game lives in a ref and advances in
@@ -53,6 +56,18 @@ function newSeed(): number {
   return Math.floor(Math.random() * 2 ** 31);
 }
 
+// Dev builds only: ?items=flippers,switcheroo,sword hands you those (any of
+// KEPT_ITEMS) on New Game or Continue, for trying out an item before it has
+// a home in the world.
+function giveDevItems(game: GameState): GameState {
+  if (!import.meta.env.DEV) return game;
+  const wanted = new URLSearchParams(window.location.search).get("items")?.split(",") ?? [];
+  const inv = game.inventory;
+  for (const item of KEPT_ITEMS) if (wanted.includes(item)) inv.owned.add(item);
+  settleEquipped(inv);
+  return game;
+}
+
 function anyHeld(...sources: Buttons[]): Buttons {
   const held = noButtons();
   for (const source of sources) {
@@ -62,8 +77,9 @@ function anyHeld(...sources: Buttons[]): Buttons {
 }
 
 // Reads the first connected gamepad: D-pad or left stick to move, A (or
-// Cross) for the sword, X/B for the Switcheroo, Start to pause.
-function readGamepad(): { buttons: Buttons; start: boolean } | null {
+// Cross) for the sword, X/B for the Switcheroo, Start to pause, Select (or
+// Back) for the map.
+function readGamepad(): { buttons: Buttons; start: boolean; select: boolean } | null {
   const pad = navigator.getGamepads?.().find((p) => p?.connected);
   if (!pad) return null;
   const pressed = (i: number) => pad.buttons[i]?.pressed ?? false;
@@ -78,10 +94,17 @@ function readGamepad(): { buttons: Buttons; start: boolean } | null {
       tool: pressed(2) || pressed(1),
     },
     start: pressed(9),
+    select: pressed(8),
   };
 }
 
-export type ThornwoodView = { status: GameStatus; hasSwitcheroo: boolean; menu: MenuItem[] | null };
+export type ThornwoodView = {
+  status: GameStatus;
+  hasSwitcheroo: boolean;
+  menu: MenuItem[] | null;
+  // The title of the map on screen, if it's open.
+  map: string | null;
+};
 
 export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, frameRef: RefObject<HTMLDivElement | null>) {
   const gameRef = useRef<GameState | null>(null);
@@ -89,17 +112,24 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
   const touchRef = useRef<Buttons>(noButtons());
   const padRef = useRef<Buttons>(noButtons());
   const padStartRef = useRef(false);
+  const padSelectRef = useRef(false);
   // Presses since the last simulation step, so a quick tap between frames
   // is never lost.
   const pressedRef = useRef<Buttons>(noButtons());
   const cursorRef = useRef(0);
+  // The map is a screen over the pause state, so it lives out here with
+  // the menu cursor rather than in the engine.
+  const mapRef = useRef<MapView | null>(null);
+  // On the pause screen, whether the cursor is in the item grid or on the
+  // menu along the bottom.
+  const pauseFocusRef = useRef<PauseFocus>("menu");
   // Filled in from storage when the loop starts.
   const hasSaveRef = useRef(false);
   const bestRef = useRef<number | null>(null);
   const introRef = useRef<RenderUi["bossIntro"]>(null);
   const audioStartedRef = useRef(false);
 
-  const [view, setView] = useState<ThornwoodView>({ status: "title", hasSwitcheroo: false, menu: null });
+  const [view, setView] = useState<ThornwoodView>({ status: "title", hasSwitcheroo: false, menu: null, map: null });
   const [muted, setMutedState] = useState(loadMuted);
   const mutedRef = useRef(muted);
 
@@ -118,6 +148,54 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
     setMuted(mutedRef.current);
   }, []);
 
+  const focusPauseScreen = useCallback((game: GameState) => {
+    cursorRef.current = 0;
+    pauseFocusRef.current = ownedTools(game.inventory).length > 0 ? "items" : "menu";
+  }, []);
+
+  // The map opens from play (M, Select) or from the pause menu, and closing
+  // it goes back to whichever it came from.
+  const showMap = useCallback(() => {
+    const game = gameRef.current;
+    if (!game || mapRef.current) return;
+    if (game.status === "playing") {
+      togglePause(game);
+      mapRef.current = openMap(game, "playing");
+    } else if (game.status === "paused") {
+      mapRef.current = openMap(game, "paused");
+    } else return;
+    releaseAll();
+    playSfx("mapOpen");
+  }, [releaseAll]);
+
+  const closeMap = useCallback(() => {
+    const game = gameRef.current;
+    const map = mapRef.current;
+    if (!game || !map) return;
+    mapRef.current = null;
+    if (map.from === "playing" && game.status === "paused") togglePause(game);
+    // Back on the pause menu, the cursor stays on "Map".
+    cursorRef.current = Math.max(0, menuFor("paused", false)!.findIndex((item) => item.action === "map"));
+    pauseFocusRef.current = "menu";
+    releaseAll();
+    playSfx("menu");
+  }, [releaseAll]);
+
+  const toggleMap = useCallback(() => {
+    if (mapRef.current) closeMap();
+    else showMap();
+  }, [closeMap, showMap]);
+
+  const turnMapPage = useCallback((delta: number) => {
+    const game = gameRef.current;
+    const map = mapRef.current;
+    if (!game || !map) return;
+    const next = pageMap(map, game, delta);
+    if (next.area === map.area) return;
+    mapRef.current = next;
+    playSfx("menu");
+  }, []);
+
   const runMenuAction = useCallback(
     (action: MenuAction) => {
       startAudio();
@@ -127,11 +205,17 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
       switch (action) {
         case "newGame":
         case "continue":
-          gameRef.current = createGame(newSeed(), action === "continue" ? loadSave() : null, "playing");
+          gameRef.current = giveDevItems(createGame(newSeed(), action === "continue" ? loadSave() : null, "playing"));
           break;
         case "resume":
           if (game?.status === "paused") togglePause(game);
           break;
+        case "map":
+          showMap();
+          return;
+        case "closeMap":
+          closeMap();
+          return;
         case "retry":
           if (game) continueAfterDeath(game);
           break;
@@ -145,19 +229,60 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
       }
       releaseAll();
     },
-    [releaseAll, startAudio],
+    [closeMap, releaseAll, showMap, startAudio],
   );
 
   const currentMenu = useCallback((): MenuItem[] | null => {
     const game = gameRef.current;
-    return game ? menuFor(game.status, hasSaveRef.current) : null;
+    if (!game) return null;
+    return mapRef.current ? MAP_MENU : menuFor(game.status, hasSaveRef.current);
   }, []);
+
+  // The pause screen: left and right pick a tool in the item grid (it's
+  // equipped as soon as the cursor lands on it, like the classics), down
+  // and up hop between the grid and the menu.
+  const handlePauseInput = useCallback(
+    (game: GameState, items: MenuItem[], pressed: Buttons) => {
+      if (pauseFocusRef.current === "items") {
+        if ((pressed.left || pressed.right) && cycleTool(game, pressed.left ? -1 : 1)) playSfx("menu");
+        if (pressed.down) {
+          pauseFocusRef.current = "menu";
+          playSfx("menu");
+        } else if (pressed.sword || pressed.tool) {
+          runMenuAction("resume");
+        }
+        return;
+      }
+      if (pressed.up && ownedTools(game.inventory).length > 0) {
+        pauseFocusRef.current = "items";
+        playSfx("menu");
+        return;
+      }
+      if (pressed.left || pressed.right) {
+        cursorRef.current = wrapCursor(cursorRef.current, pressed.left ? -1 : 1, items.length);
+        playSfx("menu");
+      }
+      if (pressed.sword || pressed.tool) runMenuAction(items[Math.min(cursorRef.current, items.length - 1)].action);
+    },
+    [runMenuAction],
+  );
 
   // While a menu is up, the same buttons that play the game drive it.
   const handleMenuInput = useCallback(
     (pressed: Buttons) => {
+      if (mapRef.current) {
+        if (pressed.left) turnMapPage(-1);
+        if (pressed.right) turnMapPage(1);
+        if (pressed.sword || pressed.tool) closeMap();
+        return;
+      }
+      const game = gameRef.current;
       const items = currentMenu();
-      if (!items) return;
+      if (!game || !items) return;
+      if (game.status === "paused") {
+        handlePauseInput(game, items, pressed);
+        return;
+      }
       if (pressed.up || pressed.left) {
         cursorRef.current = wrapCursor(cursorRef.current, -1, items.length);
         playSfx("menu");
@@ -168,16 +293,23 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
       }
       if (pressed.sword || pressed.tool) runMenuAction(items[Math.min(cursorRef.current, items.length - 1)].action);
     },
-    [currentMenu, runMenuAction],
+    [closeMap, currentMenu, handlePauseInput, runMenuAction, turnMapPage],
   );
 
+
+
   const togglePaused = useCallback(() => {
+    // Pause (Esc, Start) on the map means "close it".
+    if (mapRef.current) {
+      closeMap();
+      return;
+    }
     const game = gameRef.current;
     if (!game || (game.status !== "playing" && game.status !== "paused")) return;
     togglePause(game);
-    cursorRef.current = 0;
+    if (game.status === "paused") focusPauseScreen(game);
     playSfx("menu");
-  }, []);
+  }, [closeMap, focusPauseScreen]);
 
   const toggleMute = useCallback(() => {
     setMutedState((was) => {
@@ -214,7 +346,23 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
       const rect = canvas.getBoundingClientRect();
       const x = ((clientX - rect.left) / rect.width) * SCREEN_W;
       const y = ((clientY - rect.top) / rect.height) * SCREEN_H;
+      if (mapRef.current) {
+        const arrow = hitTest([MAP_ARROWS.prev, MAP_ARROWS.next], x, y);
+        if (arrow >= 0) turnMapPage(arrow === 0 ? -1 : 1);
+        else closeMap();
+        return;
+      }
       const items = currentMenu();
+      if (game.status === "paused") {
+        const rects = Array.from({ length: ITEM_SLOT_COUNT }, (_, i) => itemSlotRect(i));
+        const tool = toolInSlot(hitTest(rects, x, y));
+        if (tool && game.inventory.owned.has(tool)) {
+          equipTool(game, tool);
+          pauseFocusRef.current = "items";
+          playSfx("menu");
+          return;
+        }
+      }
       if (items) {
         const index = hitTest(menuLayout(game.status, items.length), x, y);
         if (index >= 0) runMenuAction(items[index].action);
@@ -230,7 +378,7 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
       }
       pressedRef.current.sword = true;
     },
-    [canvasRef, currentMenu, runMenuAction, startAudio],
+    [canvasRef, closeMap, currentMenu, runMenuAction, startAudio, turnMapPage],
   );
 
   // Sizes the canvas to the largest whole-number multiple of 256x208 that
@@ -305,6 +453,9 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
       const start = pad?.start ?? false;
       if (start && !padStartRef.current) togglePaused();
       padStartRef.current = start;
+      const select = pad?.select ?? false;
+      if (select && !padSelectRef.current) toggleMap();
+      padSelectRef.current = select;
     };
 
     let raf = 0;
@@ -330,15 +481,22 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
 
       const game = gameRef.current!;
       handleEvents(game, now);
-      const items = menuFor(game.status, hasSaveRef.current);
+      if (mapRef.current && game.status !== "paused") mapRef.current = null;
+      const map = mapRef.current;
+      const items = map ? null : menuFor(game.status, hasSaveRef.current);
       if (items) cursorRef.current = Math.min(cursorRef.current, items.length - 1);
       const intro = introRef.current && now - introRef.current.startedAt < 3.2 ? introRef.current : null;
-      renderer.render(game, { menu: items ? { items, cursor: cursorRef.current } : null, bestFrames: bestRef.current, bossIntro: intro }, now);
+      renderer.render(game, { menu: items ? { items, cursor: cursorRef.current } : null, bestFrames: bestRef.current, bossIntro: intro, map, pauseFocus: pauseFocusRef.current }, now);
 
       const track = musicFor(game) ?? (game.status === "title" ? "title" : null);
       playMusic(audioStartedRef.current ? track : null);
 
-      const nextView: ThornwoodView = { status: game.status, hasSwitcheroo: game.inventory.hasSwitcheroo, menu: items };
+      const nextView: ThornwoodView = {
+        status: game.status,
+        hasSwitcheroo: game.inventory.owned.has("switcheroo"),
+        menu: map ? MAP_MENU : items,
+        map: map ? AREA_TITLES[map.area] : null,
+      };
       const key = JSON.stringify(nextView);
       if (key !== lastView) {
         lastView = key;
@@ -353,7 +511,7 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
       window.removeEventListener("resize", fitCanvas);
       playMusic(null);
     };
-  }, [canvasRef, frameRef, fitCanvas, handleMenuInput, togglePaused]);
+  }, [canvasRef, frameRef, fitCanvas, handleMenuInput, toggleMap, togglePaused]);
 
   // Keyboard, plus auto-pause when the tab or window loses focus.
   useEffect(() => {
@@ -368,6 +526,11 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
       if (code === "Escape" || code === "KeyP") {
         e.preventDefault();
         togglePaused();
+        return;
+      }
+      if (code === "KeyM") {
+        e.preventDefault();
+        if (!e.repeat) toggleMap();
         return;
       }
       const button = KEYS[code];
@@ -387,7 +550,9 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
     const pauseIfPlaying = () => {
       releaseAll();
       const game = gameRef.current;
-      if (game?.status === "playing") togglePause(game);
+      if (game?.status !== "playing") return;
+      togglePause(game);
+      focusPauseScreen(game);
     };
     const onVisibility = () => {
       if (document.hidden) pauseIfPlaying();
@@ -405,13 +570,14 @@ export function useThornwood(canvasRef: RefObject<HTMLCanvasElement | null>, fra
       document.removeEventListener("visibilitychange", onVisibility);
       document.removeEventListener("fullscreenchange", onFullscreen);
     };
-  }, [togglePaused, releaseAll, startAudio, fitCanvas]);
+  }, [togglePaused, toggleMap, releaseAll, startAudio, fitCanvas, focusPauseScreen]);
 
   return {
     view,
     muted,
     toggleMute,
     togglePaused,
+    toggleMap,
     runMenuAction,
     pointAt,
     setTouchButton,

@@ -1,20 +1,20 @@
-import { centerOf, distance, moveBox, overlaps } from "./collision";
+import { centerOf, distance, overlaps } from "./collision";
 import { collectDrop, hurtHero } from "./combat";
-import { SHOP_TOO_POOR_PAGES, makeDialog } from "./dialogue";
-import { directionOfVector, vectorOf } from "./directions";
+import { BUN_PAGES, SHOP_TOO_POOR_PAGES, makeDialog } from "./dialogue";
 import { addShake, playSound, spawnBurst, updateParticles } from "./effects";
 import { updateEnemies } from "./enemies";
 import { updateHero } from "./hero";
 import { grantChest } from "./interact";
+import { noKeys, settleEquipped } from "./inventory";
 import { updateProjectiles } from "./projectiles";
-import { random, randomInt, randomPick } from "./rng";
-import { blockers, flags, loadRoom, updateMechanisms, walkerSolidAt } from "./room";
+import { runQuestAction, sendFoundHome } from "./quests";
+import { flags, loadRoom, noteSeen, updateMechanisms } from "./room";
 import type { SaveData } from "./save";
 import { arriveInRoom, placeHero, updateTransition } from "./transitions";
+import { updateNpcs } from "./villagers";
 import { START_SPAWN } from "./world";
 import {
   DIALOG_CHARS_PER_STEP,
-  DIRECTIONS,
   HERO_SIZE,
   HERO_START_HP,
   HURT_INVULN_FRAMES,
@@ -24,7 +24,6 @@ import {
   type GameState,
   type GameStatus,
   type Input,
-  type Npc,
 } from "./types";
 
 // The engine's public surface: create a game, advance it one fixed step,
@@ -56,13 +55,17 @@ export function createGame(seed: number, save: SaveData | null = null, status: G
       actionFrame: 0,
       attackId: 0,
       holding: null,
+      swimming: false,
+      dive: 0,
+      diveCooldown: 0,
+      surfacing: 0,
     },
     inventory: {
-      hasSword: save?.hasSword ?? false,
-      hasSwitcheroo: save?.hasSwitcheroo ?? false,
+      owned: new Set(save?.owned ?? []),
       gems: save?.gems ?? 0,
-      smallKeys: save?.smallKeys ?? 0,
-      hasBigKey: save?.hasBigKey ?? false,
+      keys: structuredClone(save?.keys ?? noKeys()),
+      gateKey: save?.gateKey ?? false,
+      equipped: save?.equipped ?? null,
     },
     flags: new Set(save?.flags ?? []),
     enemies: [],
@@ -87,6 +90,7 @@ export function createGame(seed: number, save: SaveData | null = null, status: G
     switchCooldown: 0,
     events: [],
   };
+  settleEquipped(state.inventory);
   loadRoom(state, spawn.roomId);
   placeHero(state, spawn);
   arriveInRoom(state);
@@ -118,6 +122,7 @@ export function update(state: GameState, input: Input): void {
   }
 
   updateHero(state, input);
+  noteSeen(state);
   if (state.transition || state.dialog || state.status !== "playing") return;
 
   if (state.hero.action !== "dying") {
@@ -152,6 +157,9 @@ export function continueAfterDeath(state: GameState): void {
   hero.hp = Math.min(hero.maxHp, HERO_START_HP);
   hero.invulnFrames = HURT_INVULN_FRAMES;
   hero.holding = null;
+  hero.swimming = false;
+  hero.dive = 0;
+  hero.surfacing = 0;
   state.dialog = null;
   loadRoom(state, state.respawn.roomId);
   placeHero(state, state.respawn);
@@ -205,6 +213,7 @@ function updateDialog(state: GameState, input: Input): void {
 function closeDialog(state: GameState): void {
   state.dialog = null;
   state.hero.holding = null;
+  sendFoundHome(state);
 }
 
 function runDialogAction(state: GameState, action: DialogAction): void {
@@ -231,53 +240,37 @@ function runDialogAction(state: GameState, action: DialogAction): void {
       playSound(state, "itemGet");
       grantChest(state, { item: "heartContainer" });
       return;
+    case "rest": {
+      // A nap: the screen fades out to a lullaby, and you wake up right
+      // where you lay down with every heart full.
+      const hero = state.hero;
+      hero.hp = hero.maxHp;
+      playSound(state, "lullaby");
+      state.transition = {
+        kind: "fadeOut",
+        frame: 0,
+        to: { roomId: state.roomId, x: hero.x, y: hero.y, facing: "down" },
+        hold: 70,
+      };
+      return;
+    }
+    case "snack":
+      state.hero.hp = state.hero.maxHp;
+      playSound(state, "heart");
+      state.dialog = makeDialog(BUN_PAGES);
+      return;
     case "win":
       state.status = "won";
       state.events.push({ type: "won" });
       return;
+    default:
+      runQuestAction(state, action);
   }
 }
 
 // ---------------------------------------------------------------------------
-// Everything else that ticks: villagers, falling rocks, loot, low health.
+// Everything else that ticks: falling rocks, loot, low health.
 // ---------------------------------------------------------------------------
-function updateNpcs(state: GameState): void {
-  const heroCenter = centerOf(state.hero);
-  for (const npc of state.npcs) {
-    npc.anim++;
-    if (npc.talkFrames > 0) npc.talkFrames--;
-    if (npc.wanders) {
-      wander(state, npc);
-    } else if (distance(centerOf(npc), heroCenter) < 40) {
-      const c = centerOf(npc);
-      npc.facing = directionOfVector(heroCenter.x - c.x, heroCenter.y - c.y);
-    }
-  }
-}
-
-// Banjo trots around the village, and likes to come say hi.
-function wander(state: GameState, npc: Npc): void {
-  if (npc.vx === 0 && npc.vy === 0) {
-    if (--npc.timer > 0) return;
-    const c = centerOf(npc);
-    const hero = centerOf(state.hero);
-    npc.facing =
-      random(state) < 0.35 ? directionOfVector(hero.x - c.x, hero.y - c.y) : randomPick(state, DIRECTIONS);
-    const v = vectorOf(npc.facing);
-    npc.vx = v.x * 0.7;
-    npc.vy = v.y * 0.7;
-    npc.timer = randomInt(state, 30, 70);
-    return;
-  }
-  const others = [...blockers(state).filter((b) => b !== npc), state.hero];
-  const { hitX, hitY } = moveBox(npc, npc.vx, npc.vy, walkerSolidAt(state), others);
-  if (hitX || hitY || --npc.timer <= 0) {
-    npc.vx = 0;
-    npc.vy = 0;
-    npc.timer = randomInt(state, 40, 110);
-  }
-}
-
 function updateHazards(state: GameState): void {
   const hero = centerOf(state.hero);
   for (const h of [...state.hazards]) {

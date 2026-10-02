@@ -176,10 +176,50 @@ const SOUNDS: Record<SoundName, () => void> = {
   },
   dying: () => arpeggio([784, 740, 698.5, 659.25, 622.25, 587.3, 554.4, 523.25], 0.085, 0.12, "square", 0.06),
   menu: () => tone({ from: 1250, duration: 0.03, type: "square", gain: 0.05 }),
+  // Wading into deep water: a wet crash of noise over a low plunk.
+  splash: () => {
+    noise({ duration: 0.3, filter: "bandpass", from: 1800, to: 500, q: 0.7, gain: 0.2 });
+    tone({ from: 320, to: 140, duration: 0.14, type: "sine", gain: 0.12 });
+  },
+  // Going under: a bloop that sinks...
+  dive: () => {
+    tone({ from: 700, to: 160, duration: 0.28, type: "sine", gain: 0.14 });
+    noise({ duration: 0.16, filter: "lowpass", from: 900, to: 300, gain: 0.1 });
+  },
+  // ...and one that pops back up.
+  surface: () => {
+    tone({ from: 220, to: 760, duration: 0.16, type: "sine", gain: 0.12 });
+    noise({ duration: 0.14, filter: "highpass", from: 2400, to: 1200, gain: 0.08, delay: 0.06 });
+  },
+  // The shop's service bell: a bright ding that rings on.
+  bell: () => {
+    tone({ from: 2093, duration: 0.9, type: "sine", gain: 0.12 });
+    tone({ from: 3136, duration: 0.5, type: "sine", gain: 0.05 });
+  },
+  // A music-box lullaby for a nap, slow and soft.
+  lullaby: () => arpeggio([784, 659.25, 523.25, 659.25, 784, 1046.5, 987.8, 784], 0.2, 0.55, "triangle", 0.06),
+  // A paper rustle as the map unfolds, then a little chime.
+  mapOpen: () => {
+    noise({ duration: 0.18, filter: "bandpass", from: 2400, to: 5200, q: 0.8, gain: 0.12 });
+    arpeggio([1046.5, 1568], 0.07, 0.16, "triangle", 0.08, 0.08);
+  },
   bark: () => {
     for (const delay of [0, 0.15]) {
       tone({ from: 650, to: 210, duration: 0.11, type: "square", gain: 0.18, delay, attack: 0.015 });
     }
+  },
+  // The ground itself groaning: a long, low rumble, then (far off) one
+  // almighty crash.
+  quake: () => {
+    noise({ duration: 2.4, from: 160, to: 60, gain: 0.45 });
+    tone({ from: 46, to: 34, duration: 2.2, type: "sine", gain: 0.3 });
+    noise({ duration: 0.9, from: 700, to: 90, gain: 0.3, delay: 1.1 });
+    tone({ from: 110, to: 30, duration: 0.8, type: "sine", gain: 0.3, delay: 1.1 });
+  },
+  // A duckling, startled.
+  peep: () => {
+    tone({ from: 2400, to: 3100, duration: 0.07, type: "square", gain: 0.05 });
+    tone({ from: 2600, to: 3400, duration: 0.08, type: "square", gain: 0.05, delay: 0.1 });
   },
 };
 

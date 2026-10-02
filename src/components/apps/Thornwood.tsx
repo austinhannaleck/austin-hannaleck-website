@@ -13,7 +13,8 @@ const CONTROLS = [
   ["Sword, talk, open", "Space"],
   ["Spin attack", "Hold Space, release"],
   ["Switcheroo", "Option (Alt) or Shift"],
-  ["Pause", "Esc / P"],
+  ["Map", "M"],
+  ["Items and pause", "Esc / P"],
 ];
 
 function Thornwood() {
@@ -62,7 +63,13 @@ function Thornwood() {
       <div className="sr-only" aria-live="polite">
         {game.view.menu && (
           <div>
-            <p>{game.view.status === "title" ? "Thornwood title screen" : `Game ${game.view.status}`}</p>
+            <p>
+              {game.view.map
+                ? `Map of ${game.view.map}`
+                : game.view.status === "title"
+                  ? "Thornwood title screen"
+                  : `Game ${game.view.status}`}
+            </p>
             {game.view.menu.map((item) => (
               <button key={item.action} type="button" onClick={() => game.runMenuAction(item.action)}>
                 {item.label}
@@ -94,6 +101,7 @@ function Thornwood() {
         onDirections={(dirs) => game.setTouchDirections(dirs)}
         onButton={(button, down) => game.setTouchButton(button, down)}
         onPause={game.togglePaused}
+        onMap={game.toggleMap}
         hasTool={game.view.hasSwitcheroo}
       />
 
@@ -107,7 +115,7 @@ function Thornwood() {
           ))}
           <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
             J and K work for the sword and Switcheroo too. Menus: arrows and Space (or Enter), or just click.
-            Gamepads work too: A for the sword, X or B for the Switcheroo, Start to pause.
+            Gamepads work too: A for the sword, X or B for the Switcheroo, Start to pause, Select for the map.
           </p>
         </dl>
         <div className="rounded-xl border border-neutral-200 p-4 text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
@@ -116,6 +124,8 @@ function Thornwood() {
             <li>Talk to everyone. Nana Shellby has something for you.</li>
             <li>A purple glow means the Switcheroo can swap with it.</li>
             <li>Some enemies are only soft from behind.</li>
+            <li>Worn out? Go home and take a nap. Your bed is at Nana&apos;s.</li>
+            <li>After Bramblekeep, head east. Something came down out there.</li>
             <li>Progress saves whenever you walk into a new room.</li>
           </ul>
         </div>

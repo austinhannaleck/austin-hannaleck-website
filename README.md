@@ -167,12 +167,36 @@ composing a folder of pieces (`getTheBuggy/`) that separates concerns:
 
 `Thornwood.tsx` is an action adventure in the spirit of *A Link to the
 Past*, styled after the SNES and Genesis era: a village with a few odd
-neighbors, a small overworld, and Bramblekeep, a dungeon built around one
-tool. That tool is the Switcheroo, which fires a bolt that swaps you with
+neighbors, an overworld to explore, and Bramblekeep, a dungeon built
+around one tool. Bramblekeep's gate is locked, so getting in means finding
+its retired keeper south of the village and then fetching his key from a
+cave in the thicket. The dungeon's tool is the Switcheroo, which fires a bolt that swaps you with
 whatever it hits. Its puzzles (crossing a chasm, weighing down a pressure
 plate, flipping a crystal switch from across a pit) and its boss (an
 armored beetle that's only vulnerable from behind, so you swap places to
 get there) all hinge on it.
+
+Puddlebrook's houses can be walked into: Nana's, with a bed you can nap
+in to refill your hearts, a bookshelf of silly books, and pots to smash;
+and Ribbit's shop, where you buy from behind the counter (and can ring
+the service bell, to his annoyance).
+
+Beating Thornback shakes the whole forest, and the jammed drawbridge over
+the gorge in Eastfield comes crashing down. Across it is Fernwhistle, a
+village cut off for months, with its own theme tune. It's one big room
+(six screens' worth) that the camera scrolls around with you instead of
+flipping screen to screen, with a windmill, a market square, a pier, a
+duck pond, five houses to walk into, and four side quests: catching Mama
+Mallard's runaway ducklings (they run), carrying the post to a mole and
+back, a game of hide and seek, and diving for the Mayor's ring. The
+ducklings earn you the Flippers: with them, deep water stops being a
+wall, and diving makes you untouchable for a moment and can turn up sunken
+treasure.
+
+The pause screen is a classic subscreen: an item grid where you pick the
+tool on the item button, a gear panel (which also shows whatever you're
+carrying for somebody), and a map that fills in a screen at a time as you
+explore.
 
 There are no image or audio files. Every sprite is pixel art written as
 text, every tile is painted procedurally, and the music is played by a
@@ -181,16 +205,18 @@ small Web Audio "sound chip":
 ```
 thornwood/
   engine/      # the game's rules: pure TypeScript, no DOM, no canvas
-    rooms/     # levels, authored as 16x11 grids of tile characters
+    rooms/     # levels, authored as grids of tile characters, 16x11 a screen
   render/      # Canvas 2D: draws engine state at 256x208, like a SNES
     art/       # pixel art as text grids, plus procedural sprite painters
-  audio/       # sound effects and a chiptune sequencer with five themes
-  ui/          # touch controls and the in-game menu model
+  audio/       # sound effects and a chiptune sequencer with seven themes
+  ui/          # touch controls, and the menu and map models
   useThornwood.ts   # glue: game loop, input, audio, save/load
 ```
 
 - **The engine is a classic 2D tile simulation**: room-local pixel
-  coordinates, AABB collision, a fixed 60Hz step. It never touches the
+  coordinates, AABB collision, a fixed 60Hz step. Rooms sit on a grid of
+  screens; most are one screen, a big one covers a block of them, and the
+  camera follows the hero inside it. It never touches the
   DOM, which is what lets Vitest play the game headlessly. The tests swing
   swords at enemies, solve the dungeon's puzzles with real inputs, and
   beat the boss from behind. Randomness comes from a seeded PRNG stored on
@@ -205,11 +231,17 @@ thornwood/
   SNES's native width) that the page scales up by whole pixels, so every
   pixel stays square. Static ground is painted once per room; characters
   and tall props are depth-sorted each frame. Stairs dissolve with a
-  SNES-style mosaic, and dungeons get torchlight.
+  SNES-style mosaic, and dungeons get torchlight. The pause-screen map
+  repaints each visited room in miniature from its own tile grid, so it
+  can never drift from the real level; rooms you haven't entered stay
+  fogged.
 - **Songs are melodies over chords.** Each theme is a melody line plus one
   chord per bar; the bass and the fast chiptune arpeggios are generated
   from the chords. Voices mix pulse waves and an echo bus (SNES) with
-  two-operator FM (Genesis).
+  two-operator FM (Genesis). The music follows the action: the moment a
+  trap room's shutters slam shut, or Captain Clank steps up, a menacing
+  theme takes over until the last monster falls, and Thornback gets a boss
+  theme of its own.
 - **Levels are text, too.** Each room is a grid of characters (`T` tree,
   `b` bush, `v` pit, `L` locked door...). `world.test.ts` validates them:
   map shape, matching openings between neighboring rooms, and every chest

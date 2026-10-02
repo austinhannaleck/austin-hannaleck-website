@@ -24,6 +24,15 @@ function walkCycle(stand: Art, step: Art): Art[] {
 }
 
 const KNIGHT_TO_FUMBLETON = { r: "b", R: "B", y: "c", z: "w", n: "N" };
+const KNIGHT_TO_STOUT = { r: "g", R: "G", n: "N" };
+const RIBBIT_TO_HOPSWORTH = { g: "n", G: "N", l: "m", r: "b", R: "B" };
+// Tilly and the hide-and-seek gang: fur, then clothes.
+const BUNNIES = {
+  tilly: {},
+  bo: { m: "n", n: "N", r: "g", R: "G" },
+  pip: { m: "w", r: "b", R: "B" },
+  fern: { m: "E", r: "f", R: "F" },
+};
 const TO_BLUE = { r: "t", R: "T", q: "u" };
 
 function build() {
@@ -48,6 +57,8 @@ function build() {
     upRight: sprite(flipY(hero.SWORD_DIAGONAL)),
     upLeft: sprite(flipX(flipY(hero.SWORD_DIAGONAL))),
   };
+
+  const mapIcon = sprite(hero.MAP_ICON);
 
   const wand = {
     right: sprite(hero.WAND),
@@ -80,6 +91,30 @@ function build() {
     ghost: [sprite(creatures.GHOST_A), sprite(creatures.GHOST_B)],
     banjo: facings([creatures.BANJO_DOWN], [creatures.BANJO_UP], [creatures.BANJO_RIGHT, creatures.BANJO_RIGHT_STEP]),
     fumbleton: facings(fumble(knightDown), fumble(knightUp), fumble(knightRight)),
+    mossbeard: sprite(creatures.MOSSBEARD),
+    pinch: [sprite(creatures.PINCH), sprite(flipX(creatures.PINCH))],
+    stout: facings(
+      [recolor(creatures.KNIGHT_DOWN, KNIGHT_TO_STOUT)],
+      [recolor(creatures.KNIGHT_UP, KNIGHT_TO_STOUT)],
+      [recolor(creatures.KNIGHT_RIGHT, KNIGHT_TO_STOUT)],
+    ),
+    mallard: sprite(creatures.MALLARD),
+    duckling: {
+      right: [sprite(creatures.DUCKLING_A), sprite(creatures.DUCKLING_B)],
+      left: [sprite(flipX(creatures.DUCKLING_A)), sprite(flipX(creatures.DUCKLING_B))],
+    },
+    pidge: [sprite(creatures.PIDGE), sprite(flipX(creatures.PIDGE))],
+    marigold: sprite(creatures.MARIGOLD),
+    bellwether: sprite(creatures.BELLWETHER),
+    bunnies: {
+      tilly: sprite(recolor(creatures.BUNNY, BUNNIES.tilly)),
+      bo: sprite(recolor(creatures.BUNNY, BUNNIES.bo)),
+      pip: sprite(recolor(creatures.BUNNY, BUNNIES.pip)),
+      fern: sprite(recolor(creatures.BUNNY, BUNNIES.fern)),
+    },
+    bun: sprite(creatures.BUN),
+    hopsworth: sprite(recolor(creatures.RIBBIT, RIBBIT_TO_HOPSWORTH)),
+    ott: sprite(creatures.OTT),
   };
 
   const items = {
@@ -89,6 +124,11 @@ function build() {
     heartContainer: sprite(proc.heartContainer()),
     smallKey: sprite(objects.SMALL_KEY),
     bigKey: sprite(objects.BIG_KEY),
+    gateKey: sprite(recolor(objects.BIG_KEY, { y: "g", z: "l", Y: "G", r: "y" })),
+    flippers: sprite(objects.FLIPPERS),
+    letter: sprite(objects.LETTER),
+    reply: sprite(recolor(objects.LETTER, { w: "m", E: "n", r: "g" })),
+    ring: sprite(objects.RING),
     sunstone: [sprite(proc.sunstone(0)), sprite(proc.sunstone(1))],
     seed: sprite(objects.SEED),
     thorn: sprite(objects.THORN),
@@ -122,6 +162,7 @@ function build() {
       return { across: toSprite(art), along: toSprite(rotateCW(art)) };
     })(),
     bars: { across: toSprite(objects.BARS), along: toSprite(rotateCW(objects.BARS)) },
+    gate: toSprite(objects.GATE),
     goldBars: (() => {
       const art = recolor(objects.BARS, { a: "z", A: "y", i: "Y" });
       return { across: toSprite(art), along: toSprite(rotateCW(art)) };
@@ -137,7 +178,7 @@ function build() {
     heart: { full: sprite(proc.heart(7)), half: sprite(proc.heart(7, "half")), empty: sprite(proc.heart(7, "empty")) },
   };
 
-  return { hero: heroSprites, sword, wand, enemies, npcs, items, props, hud };
+  return { hero: heroSprites, sword, wand, mapIcon, enemies, npcs, items, props, hud };
 }
 
 export type Sprites = ReturnType<typeof build>;

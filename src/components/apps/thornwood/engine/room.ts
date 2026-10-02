@@ -2,8 +2,8 @@ import { createDrop, createEnemy, createNpc, createProp, ENEMY_STATS } from "./a
 import { centerOf, findFreeSpot, overlaps, tileSpan, type SolidAt } from "./collision";
 import { playSound, spawnBurst } from "./effects";
 import { CONDITIONAL_TILES, OPEN_CHEST, blocksShotsAlways, isAlwaysSolid, isPit, isWater, isWarp } from "./tiles";
-import { ROOMS, areaOf, neighborRoomId, tileKey } from "./world";
-import { ROOM_COLS, ROOM_H, ROOM_ROWS, ROOM_W, TILE, type BossId, type Box, type GameState } from "./types";
+import { ROOMS, across, areaOf, cellAt, cellsOf, tileKey, type NpcSpawn } from "./world";
+import { ROOM_H, ROOM_W, TILE, type BossId, type Box, type GameState } from "./types";
 
 // Loading rooms, and every rule about which tiles block what. Bushes
 // regrow each time you come back to a room, and so do overworld enemies
@@ -17,6 +17,12 @@ export const flags = {
   boss: (boss: BossId) => `boss:${boss}`,
   // A dungeon enemy, by its spawn index in the room's enemy list.
   defeated: (roomId: string, spawn: number) => `defeated:${roomId}:${spawn}`,
+  // A screen the hero has set foot in, which fills it in on the map. Its
+  // id is a cell id (see world.ts), the same as the room's for a
+  // one-screen room.
+  seen: (cellId: string) => `seen:${cellId}`,
+  // Treasure brought up from the bottom of a water tile.
+  sunken: (roomId: string, col: number, row: number) => `sunken:${roomId}:${tileKey(col, row)}`,
   // Set while Bramblekeep's blue pegs are up (and the red ones down).
   bluePegs: "switch:bramblekeep",
   thornbackHeart: "drop:thornback-heart",
@@ -24,9 +30,32 @@ export const flags = {
   nanaSword: "npc:nana-sword",
   banjoGift: "npc:banjo-gift",
   shopHeart: "shop:heart",
+  // Someone you had to find: a runaway duckling, a child out of hiding.
+  found: (tag: string) => `found:${tag}`,
+  // Fernwhistle's side quests (see quests.ts). The letter, the reply, and
+  // the ring are set while you're carrying them.
+  ducklingsThanked: "quest:ducklings",
+  letter: "quest:letter",
+  reply: "quest:reply",
+  mailDelivered: "quest:mail",
+  seekPrize: "quest:seek",
+  ring: "quest:ring",
+  ringReturned: "quest:ring-returned",
 };
 
 export const THORNBACK_ROOM = "bramblekeep:1,0";
+
+// Thornback crashing down shakes the whole forest, hard enough to knock
+// the jammed Fernwhistle drawbridge loose.
+export function drawbridgeDown(flagSet: Set<string>): boolean {
+  return flagSet.has(flags.boss("thornback"));
+}
+
+// What a door leaves behind once it's open: dungeon floor, or (for the
+// overworld gate) the path it stood on.
+export function openedDoor(ch: string): string {
+  return ch === "G" ? ":" : "_";
+}
 
 function floorFor(roomId: string): string {
   return areaOf(roomId) === "overworld" ? "." : "_";
@@ -40,10 +69,11 @@ export function initialTiles(roomId: string, flagSet: Set<string>): string[][] {
     if (flagSet.has(flags.chest(roomId, col, row))) tiles[row][col] = OPEN_CHEST;
     else if (chest.hidden) tiles[row][col] = floorFor(roomId);
   }
-  for (let row = 0; row < ROOM_ROWS; row++) {
-    for (let col = 0; col < ROOM_COLS; col++) {
+  for (let row = 0; row < tiles.length; row++) {
+    for (let col = 0; col < tiles[row].length; col++) {
       const ch = tiles[row][col];
-      if ((ch === "L" || ch === "B") && flagSet.has(flags.door(roomId, col, row))) tiles[row][col] = "_";
+      if ((ch === "L" || ch === "B" || ch === "G") && flagSet.has(flags.door(roomId, col, row))) tiles[row][col] = openedDoor(ch);
+      if (ch === "Y") tiles[row][col] = drawbridgeDown(flagSet) ? "=" : "v";
     }
   }
   return tiles;
@@ -52,6 +82,9 @@ export function initialTiles(roomId: string, flagSet: Set<string>): string[][] {
 export function loadRoom(state: GameState, roomId: string): void {
   const def = ROOMS[roomId];
   state.roomId = roomId;
+  // A one-screen room is on the map from the moment you start into it.
+  // A bigger one fills in screen by screen, as you walk (see noteSeen).
+  if (cellsOf(roomId).length === 1) state.flags.add(flags.seen(roomId));
   state.tiles = initialTiles(roomId, state.flags);
   state.enemies = (def.enemies ?? [])
     .map((spawn, index) => ({ ...spawn, index }))
@@ -61,7 +94,7 @@ export function loadRoom(state: GameState, roomId: string): void {
       return !state.flags.has(flags.defeated(roomId, spawn.index));
     })
     .map((spawn) => createEnemy(state, spawn.kind, spawn.col, spawn.row, spawn.index));
-  state.npcs = (def.npcs ?? []).map((spawn) => createNpc(state, spawn.kind, spawn.col, spawn.row, spawn.wanders ?? false));
+  state.npcs = npcsIn(roomId, state.flags).map((spawn) => createNpc(state, spawn, roomId));
   state.props = (def.props ?? []).map((spawn) => createProp(state, spawn.kind, spawn.col, spawn.row));
   state.drops = [];
   state.projectiles = [];
@@ -76,6 +109,26 @@ export function loadRoom(state: GameState, roomId: string): void {
   if (roomId === THORNBACK_ROOM && state.flags.has(flags.boss("thornback"))) {
     spawnThornbackSpoils(state, ROOM_W / 2, ROOM_H / 2 + TILE);
   }
+}
+
+// Villagers you have to go and find, wherever they start out.
+const SOUGHT = Object.values(ROOMS).flatMap((def) => (def.npcs ?? []).filter((n) => n.tag && n.home));
+
+function isFound(spawn: NpcSpawn, flagSet: Set<string>): boolean {
+  return spawn.tag !== undefined && flagSet.has(flags.found(spawn.tag));
+}
+
+// Who's in a room right now: its own villagers, minus any you've found
+// (they've gone home), plus anyone found whose home is here.
+export function npcsIn(roomId: string, flagSet: Set<string>): NpcSpawn[] {
+  const here = (ROOMS[roomId].npcs ?? []).filter((n) => !(n.home && isFound(n, flagSet)));
+  const home = SOUGHT.filter((n) => n.home!.roomId === roomId && isFound(n, flagSet)).map((n) => ({
+    ...n,
+    col: n.home!.col,
+    row: n.home!.row,
+    wanders: false,
+  }));
+  return [...here, ...home];
 }
 
 export function spawnThornbackSpoils(state: GameState, bossX: number, bossY: number): void {
@@ -129,8 +182,19 @@ function nudgeHeroOffTile(state: GameState, col: number, row: number): void {
 }
 
 export function tileAt(state: GameState, col: number, row: number): string | null {
-  if (col < 0 || col >= ROOM_COLS || row < 0 || row >= ROOM_ROWS) return null;
+  if (row < 0 || row >= state.tiles.length || col < 0 || col >= state.tiles[row].length) return null;
   return state.tiles[row][col];
+}
+
+// The current room's size in pixels.
+export function roomPixels(state: GameState): { w: number; h: number } {
+  return { w: state.tiles[0].length * TILE, h: state.tiles.length * TILE };
+}
+
+// Marks the screen the hero is on as seen, for the map.
+export function noteSeen(state: GameState): void {
+  const c = centerOf(state.hero);
+  state.flags.add(flags.seen(cellAt(state.roomId, c.x, c.y)));
 }
 
 export function roomHasTile(state: GameState, ch: string): boolean {
@@ -156,16 +220,13 @@ function conditionalSolid(state: GameState, ch: string): boolean {
   }
 }
 
-// Walking off the screen is only allowed where there's a room to scroll
+// Walking off the room is only allowed where there's a room to scroll
 // into. (Openings in the map's border are what actually let you get there.)
 function exitOpen(state: GameState, col: number, row: number): boolean {
-  const outX = col < 0 || col >= ROOM_COLS;
-  const outY = row < 0 || row >= ROOM_ROWS;
+  const outX = col < 0 || col >= state.tiles[0].length;
+  const outY = row < 0 || row >= state.tiles.length;
   if (outX && outY) return false;
-  if (col < 0) return neighborRoomId(state.roomId, "left") !== null;
-  if (col >= ROOM_COLS) return neighborRoomId(state.roomId, "right") !== null;
-  if (row < 0) return neighborRoomId(state.roomId, "up") !== null;
-  return neighborRoomId(state.roomId, "down") !== null;
+  return across(state.roomId, col, row) !== null;
 }
 
 // Shutters, bars, and pegs that close while you're standing in them don't
@@ -175,7 +236,7 @@ export function heroSolidAt(state: GameState, from: Box = state.hero): SolidAt {
   return (col, row) => {
     const ch = tileAt(state, col, row);
     if (ch === null) return !exitOpen(state, col, row);
-    if (isAlwaysSolid(ch) || isWater(ch)) return true;
+    if (isAlwaysSolid(ch) || (isWater(ch) && !state.inventory.owned.has("flippers"))) return true;
     if (CONDITIONAL_TILES.has(ch)) {
       const standingOn = col >= under.c0 && col <= under.c1 && row >= under.r0 && row <= under.r1;
       return !standingOn && conditionalSolid(state, ch);
@@ -193,7 +254,7 @@ export function walkerSolidAt(state: GameState): SolidAt {
 }
 
 // Flyers cross water, pits, bushes, and boulders, but not anything tall.
-const FLYER_SOLID = new Set(["#", "^", "T", "H", "f", "t", "L", "B"]);
+const FLYER_SOLID = new Set(["#", "^", "T", "H", "f", "t", "L", "B", "G"]);
 
 export function flyerSolidAt(state: GameState): SolidAt {
   return (col, row) => {

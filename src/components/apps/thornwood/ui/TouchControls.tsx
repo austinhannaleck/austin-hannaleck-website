@@ -18,10 +18,11 @@ type Props = {
   onDirections: (dirs: Directions) => void;
   onButton: (button: "sword" | "tool", down: boolean) => void;
   onPause: () => void;
+  onMap: () => void;
   hasTool: boolean;
 };
 
-export default function TouchControls({ onDirections, onButton, onPause, hasTool }: Props) {
+export default function TouchControls({ onDirections, onButton, onPause, onMap, hasTool }: Props) {
   const padRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<Directions>(NONE);
 
@@ -93,13 +94,23 @@ export default function TouchControls({ onDirections, onButton, onPause, hasTool
         {arrow("right", 90, "right-3 top-1/2 -translate-y-1/2")}
         <span className="absolute top-1/2 left-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-700/80" />
       </div>
-      <button
-        type="button"
-        onClick={onPause}
-        className="self-start rounded-full bg-neutral-200 px-3 py-1 text-xs font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
-      >
-        Pause
-      </button>
+      <div className="flex flex-col gap-2 self-start">
+        {(
+          [
+            ["Pause", onPause],
+            ["Map", onMap],
+          ] as const
+        ).map(([label, onClick]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={onClick}
+            className="rounded-full bg-neutral-200 px-3 py-1 text-xs font-bold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="relative h-36 w-36">
         {actionButton("sword", "Sword", "absolute right-0 bottom-2 h-20 w-20 bg-rose-500 text-3xl")}
         {hasTool && actionButton("tool", "Switcheroo", "absolute top-0 left-2 h-16 w-16 bg-violet-500 text-2xl")}

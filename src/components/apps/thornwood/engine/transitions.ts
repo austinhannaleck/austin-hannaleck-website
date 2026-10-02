@@ -1,10 +1,11 @@
 import { ENEMY_STATS } from "./actors";
-import { tileSpan } from "./collision";
+import { areaCameraFor } from "./camera";
+import { centerOf, tileSpan } from "./collision";
 import { vectorOf } from "./directions";
 import { playSound } from "./effects";
-import { loadRoom, tileAt, updateMechanisms } from "./room";
-import { neighborRoomId, spawnAtTile, type WarpDef } from "./world";
-import { FADE_FRAMES, ROOM_H, ROOM_W, SCROLL_FRAMES, TILE, type Direction, type GameState, type Spawn } from "./types";
+import { loadRoom, noteSeen, roomPixels, tileAt, updateMechanisms } from "./room";
+import { across, roomOrigin, spawnAtTile, type WarpDef } from "./world";
+import { FADE_FRAMES, SCROLL_FRAMES, TILE, type Direction, type GameState, type Spawn } from "./types";
 
 // Moving between rooms: sliding to the next screen when you walk off an
 // edge, and fading through black on stairs and cave mouths.
@@ -14,21 +15,48 @@ import { FADE_FRAMES, ROOM_H, ROOM_W, SCROLL_FRAMES, TILE, type Direction, type 
 const SCROLL_WALK = TILE;
 
 export function startScroll(state: GameState, dir: Direction): boolean {
-  const next = neighborRoomId(state.roomId, dir);
+  const hero = state.hero;
+  const c = centerOf(hero);
+  // Which room is past this edge depends on where along it you cross,
+  // once rooms come in different sizes.
+  const { w, h } = roomPixels(state);
+  const col = dir === "left" ? -1 : dir === "right" ? w / TILE : Math.floor(c.x / TILE);
+  const row = dir === "up" ? -1 : dir === "down" ? h / TILE : Math.floor(c.y / TILE);
+  const next = across(state.roomId, col, row);
   if (!next) return false;
   const fromRoomId = state.roomId;
-  loadRoom(state, next);
+  const fromTiles = state.tiles;
+  const fromCamera = areaCameraFor(fromRoomId, hero);
 
-  const hero = state.hero;
-  if (dir === "left") hero.x = ROOM_W - hero.w;
+  // Carry the hero over into the new room's coordinates, then square
+  // them up against the edge they came in by.
+  const from = roomOrigin(fromRoomId);
+  const to = roomOrigin(next.roomId);
+  hero.x += from.x - to.x;
+  hero.y += from.y - to.y;
+  loadRoom(state, next.roomId);
+  const room = roomPixels(state);
+  if (dir === "left") hero.x = room.w - hero.w;
   if (dir === "right") hero.x = 0;
-  if (dir === "up") hero.y = ROOM_H - hero.h;
+  if (dir === "up") hero.y = room.h - hero.h;
   if (dir === "down") hero.y = 0;
   hero.facing = dir;
   hero.action = "none";
   hero.knockback = null;
   clearDoorwayBushes(state, dir);
-  state.transition = { kind: "scroll", dir, frame: 0, fromRoomId, start: { x: hero.x, y: hero.y } };
+
+  const v = vectorOf(dir);
+  const end = { ...hero, x: hero.x + v.x * SCROLL_WALK, y: hero.y + v.y * SCROLL_WALK };
+  state.transition = {
+    kind: "scroll",
+    dir,
+    frame: 0,
+    fromRoomId,
+    fromTiles,
+    fromCamera,
+    toCamera: areaCameraFor(next.roomId, end),
+    start: { x: hero.x, y: hero.y },
+  };
   return true;
 }
 
@@ -73,6 +101,7 @@ export function placeHero(state: GameState, spawn: Spawn): void {
 // rolls the boss intro if there's a boss waiting.
 export function arriveInRoom(state: GameState): void {
   state.roomEntry = { x: state.hero.x, y: state.hero.y };
+  noteSeen(state);
   updateMechanisms(state, true);
   state.events.push({ type: "checkpoint" });
   const boss = state.enemies.find((e) => ENEMY_STATS[e.kind].boss);
@@ -105,7 +134,7 @@ export function updateTransition(state: GameState): void {
       return;
     }
     case "fadeOut":
-      if (t.frame >= FADE_FRAMES) {
+      if (t.frame >= FADE_FRAMES + (t.hold ?? 0)) {
         loadRoom(state, t.to.roomId);
         placeHero(state, t.to);
         // Entering an area through its front door makes that the spot

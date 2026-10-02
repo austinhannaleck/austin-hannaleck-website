@@ -1,25 +1,38 @@
 import { describe, expect, it } from "vitest";
 import { createEnemy } from "./actors";
 import { thornbackExposed } from "./bosses";
-import { centerOf } from "./collision";
-import { damageEnemy, rollDrop } from "./combat";
+import { cameraFor } from "./camera";
+import { centerOf, distance } from "./collision";
+import { damageEnemy, finishBoss, hurtHero, rollDrop } from "./combat";
+import { INN_BED_PAGES, QUAKE_PAGES, WARES_SOLD_PAGES, npcDialog } from "./dialogue";
+import { grantChest } from "./interact";
+import { cycleTool } from "./inventory";
 import { continueAfterDeath, createGame, keepPlaying, update } from "./engine";
-import { flags, loadRoom, pegRaised } from "./room";
+import { DUCKLINGS } from "./quests";
+import { THORNBACK_ROOM, flags, loadRoom, pegRaised } from "./room";
+import { FERNWHISTLE } from "./rooms/fernwhistle";
 import { sanitizeSave, snapshotSave } from "./save";
+import { musicFor } from "./soundtrack";
 import { arriveInRoom, placeHero } from "./transitions";
 import {
+  DIVE_COOLDOWN_FRAMES,
+  DIVE_FRAMES,
+  DIVE_REACH_FRAMES,
   DYING_FRAMES,
   FALL_FRAMES,
   HERO_SPEED,
   SCROLL_FRAMES,
+  SURFACE_GRACE_FRAMES,
+  SWIM_SPEED,
   SWING_FRAMES,
   noButtons,
   type Buttons,
   type Direction,
   type GameState,
   type Input,
+  type NpcKind,
 } from "./types";
-import { spawnAtTile } from "./world";
+import { ROOMS, boxAtTile, spawnAtTile } from "./world";
 
 // Gameplay tests: each one sets up a scene, feeds the engine inputs one
 // fixed step at a time (exactly like the real game loop does), and checks
@@ -76,7 +89,7 @@ describe("starting out", () => {
     const game = createGame(1);
     expect(game.roomId).toBe("overworld:1,1");
     expect(game.hero.hp).toBe(6);
-    expect(game.inventory.hasSword).toBe(false);
+    expect(game.inventory.owned.has("sword")).toBe(false);
     expect(game.events).toContainEqual({ type: "checkpoint" });
   });
 
@@ -104,17 +117,17 @@ describe("starting out", () => {
     tap(game, "sword");
     expect(game.dialog?.speaker).toBe("Nana Shellby");
     finishDialogs(game);
-    expect(game.inventory.hasSword).toBe(true);
+    expect(game.inventory.owned.has("sword")).toBe(true);
     expect(game.flags.has(flags.nanaSword)).toBe(true);
     expect(game.hero.holding).toBeNull();
     // Closing the dialog doesn't also swing the sword.
     expect(game.hero.action).toBe("none");
   });
 
-  it("can buy a heart container from Ribbit", () => {
+  it("can buy a heart container from Ribbit, across his counter", () => {
     const game = newGame();
     game.inventory.gems = 50;
-    heroAt(game, 13, 4, "up");
+    enter(game, "interior:1,0", 7.5, 5, "up");
     tap(game, "sword");
     expect(game.dialog?.speaker).toBe("Ribbit");
     finishDialogs(game);
@@ -127,7 +140,7 @@ describe("starting out", () => {
 describe("combat", () => {
   it("cuts bushes", () => {
     const game = newGame();
-    game.inventory.hasSword = true;
+    game.inventory.owned.add("sword");
     heroAt(game, 1, 5, "left");
     expect(game.tiles[5][0]).toBe("b");
     tap(game, "sword");
@@ -137,7 +150,7 @@ describe("combat", () => {
 
   it("knocks enemies back, and enough hits finish them off", () => {
     const game = newGame();
-    game.inventory.hasSword = true;
+    game.inventory.owned.add("sword");
     enter(game, "overworld:0,1", 7, 5, "right");
     const jellop = createEnemy(game, "jellop", 8, 5);
     jellop.timer = 999;
@@ -197,6 +210,38 @@ describe("getting around", () => {
     expect(game.events).toContainEqual({ type: "checkpoint" });
   });
 
+  it("keeps the room you're leaving as you left it while the screen slides", () => {
+    const game = newGame();
+    game.inventory.owned.add("sword");
+    heroAt(game, 1, 5, "left");
+    tap(game, "sword");
+    step(game, IDLE, SWING_FRAMES);
+    expect(game.tiles[5][0]).toBe(".");
+
+    step(game, input({ left: true }), 30);
+    expect(game.transition?.kind).toBe("scroll");
+    expect(game.roomId).toBe("overworld:0,1");
+    // The renderer draws Puddlebrook from these: the cut bush stays cut.
+    const t = game.transition;
+    expect(t?.kind === "scroll" && t.fromTiles[5][0]).toBe(".");
+  });
+
+  it("remembers every room you set foot in, for the map", () => {
+    const game = newGame();
+    expect(game.flags.has(flags.seen("overworld:1,1"))).toBe(true);
+    expect(game.flags.has(flags.seen("overworld:0,0"))).toBe(false);
+
+    enter(game, "overworld:0,1", 3.5, 1, "up");
+    step(game, input({ up: true }), 30);
+    expect(game.roomId).toBe("overworld:0,0");
+    expect(game.flags.has(flags.seen("overworld:0,0"))).toBe(true);
+
+    // It's just a flag, so it rides along in the save.
+    const restored = createGame(2, sanitizeSave(JSON.parse(JSON.stringify(snapshotSave(game)))));
+    expect(restored.flags.has(flags.seen("overworld:0,0"))).toBe(true);
+    expect(restored.flags.has(flags.seen("overworld:2,1"))).toBe(false);
+  });
+
   it("opens locked doors with a small key, and they stay open", () => {
     const game = newGame();
     enter(game, "bramblekeep:1,2", 1, 4, "left");
@@ -204,11 +249,11 @@ describe("getting around", () => {
     expect(game.dialog?.pages[0]).toMatch(/locked/i);
     finishDialogs(game);
 
-    game.inventory.smallKeys = 1;
+    game.inventory.keys.bramblekeep.small = 1;
     tap(game, "sword");
     expect(game.tiles[4][0]).toBe("_");
     expect(game.tiles[5][0]).toBe("_");
-    expect(game.inventory.smallKeys).toBe(0);
+    expect(game.inventory.keys.bramblekeep.small).toBe(0);
 
     loadRoom(game, "bramblekeep:1,2");
     expect(game.tiles[4][0]).toBe("_");
@@ -226,13 +271,321 @@ describe("getting around", () => {
   });
 });
 
+describe("Puddlebrook's houses", () => {
+  it("can be walked into through the front door, and out again", () => {
+    const game = newGame();
+    heroAt(game, 3, 3, "up");
+    step(game, input({ up: true }), 12);
+    expect(game.transition?.kind).toBe("fadeOut");
+    step(game, IDLE, 60);
+    expect(game.roomId).toBe("interior:0,0");
+    expect(game.transition).toBeNull();
+
+    step(game, input({ down: true }), 30);
+    step(game, IDLE, 60);
+    expect(game.roomId).toBe("overworld:1,1");
+    expect(game.hero.facing).toBe("down");
+    expect(Math.floor((game.hero.x + game.hero.w / 2) / 16)).toBe(3);
+  });
+
+  it("have a bed you can nap in, which fills your hearts back up", () => {
+    const game = newGame();
+    enter(game, "interior:0,0", 11, 3, "right");
+    game.hero.hp = 1;
+    tap(game, "sword");
+    expect(game.dialog?.choice?.options[0]).toBe("Take a nap");
+    finishDialogs(game);
+    expect(sounds(game)).toContain("lullaby");
+    expect(game.transition?.kind).toBe("fadeOut");
+    step(game, IDLE, 200);
+    expect(game.transition).toBeNull();
+    expect(game.roomId).toBe("interior:0,0");
+    expect(game.hero.hp).toBe(game.hero.maxHp);
+  });
+
+  it("have a bookshelf to browse", () => {
+    const game = newGame();
+    enter(game, "interior:0,0", 2, 3, "up");
+    tap(game, "sword");
+    const books = ROOMS["interior:0,0"].examine!["2,2"];
+    expect(books.some((pages) => pages[0] === game.dialog?.pages[0])).toBe(true);
+  });
+
+  it("sell the heart container right off Ribbit's counter", () => {
+    const game = newGame();
+    game.inventory.gems = 45;
+    enter(game, "interior:1,0", 5, 5, "up");
+    tap(game, "sword");
+    expect(game.dialog?.pages[0]).toMatch(/HEART CONTAINER/);
+    finishDialogs(game);
+    expect(game.inventory.gems).toBe(5);
+    expect(game.hero.maxHp).toBe(8);
+
+    tap(game, "sword");
+    expect(game.dialog?.pages).toEqual(WARES_SOLD_PAGES);
+  });
+
+  it("have a service bell that makes Ribbit jump", () => {
+    const game = newGame();
+    enter(game, "interior:1,0", 10, 5, "up");
+    tap(game, "sword");
+    expect(sounds(game)).toContain("bell");
+    expect(game.dialog?.speaker).toBe("Ribbit");
+    expect(game.npcs.find((n) => n.kind === "ribbit")?.talkFrames).toBeGreaterThan(0);
+  });
+});
+
+describe("the Flippers", () => {
+  function swimmer(): GameState {
+    const game = newGame();
+    game.inventory.owned.add("flippers");
+    return game;
+  }
+
+  // Willow Crossing's river runs across rows 6 and 7.
+  const RIVER_TOP = 6 * 16;
+
+  it("keep you out of deep water until you have them", () => {
+    const game = newGame();
+    enter(game, "overworld:1,2", 4, 5, "down");
+    step(game, input({ down: true }), 40);
+    expect(game.hero.swimming).toBe(false);
+    expect(game.hero.y + game.hero.h).toBeLessThanOrEqual(RIVER_TOP);
+  });
+
+  it("let you wade in with a splash and swim, a little slower than walking", () => {
+    const game = swimmer();
+    enter(game, "overworld:1,2", 4, 5, "down");
+    for (let i = 0; i < 30 && !game.hero.swimming; i++) step(game, input({ down: true }));
+    expect(game.hero.swimming).toBe(true);
+    expect(sounds(game)).toContain("splash");
+
+    const y = game.hero.y;
+    step(game, input({ down: true }), 10);
+    expect(game.hero.y - y).toBeCloseTo(SWIM_SPEED * 10, 5);
+
+    // Right across, and out onto the far bank.
+    step(game, input({ down: true }), 40);
+    expect(game.hero.swimming).toBe(false);
+    expect(game.hero.y).toBeGreaterThan(8 * 16);
+  });
+
+  it("carry you downriver into the next screen", () => {
+    const game = swimmer();
+    enter(game, "overworld:1,2", 14, 6.5, "right");
+    step(game, input({ right: true }), 30);
+    expect(game.roomId).toBe("overworld:2,2");
+    step(game, IDLE, SCROLL_FRAMES + 1);
+    expect(game.hero.swimming).toBe(true);
+  });
+
+  it("dive with the sword button, out of reach of everything on the surface", () => {
+    const game = swimmer();
+    game.inventory.owned.add("sword");
+    enter(game, "overworld:1,2", 4, 6.5, "down");
+    step(game);
+    expect(game.hero.swimming).toBe(true);
+
+    tap(game, "sword");
+    expect(game.hero.action).toBe("none");
+    expect(game.hero.dive).toBeGreaterThan(0);
+    expect(sounds(game)).toContain("dive");
+
+    // Spit and bites miss a diver.
+    const hp = game.hero.hp;
+    expect(hurtHero(game, 2, { x: 0, y: 0 })).toBe(false);
+    const { x, y } = game.hero;
+    game.projectiles.push({ id: 999, kind: "seed", x, y, w: 6, h: 6, vx: 0, vy: 0, traveled: 0 });
+    step(game, IDLE, 5);
+    expect(game.hero.hp).toBe(hp);
+    game.projectiles = [];
+
+    step(game, IDLE, DIVE_FRAMES);
+    expect(game.hero.dive).toBe(0);
+    expect(sounds(game)).toContain("surface");
+
+    // A moment to catch your breath before the next one.
+    tap(game, "sword");
+    expect(game.hero.dive).toBe(0);
+    step(game, IDLE, DIVE_COOLDOWN_FRAMES);
+    tap(game, "sword");
+    expect(game.hero.dive).toBeGreaterThan(0);
+  });
+
+  it("hide a diver from bats, even one hovering right overhead, until just after coming up for air", () => {
+    const game = swimmer();
+    enter(game, "overworld:1,2", 4, 6.5, "down");
+    step(game);
+    tap(game, "sword");
+    expect(game.hero.dive).toBeGreaterThan(0);
+
+    const bat = createEnemy(game, "flitter", 4, 6.5);
+    game.enemies = [bat];
+    const overhead = () => {
+      bat.x = game.hero.x;
+      bat.y = game.hero.y;
+      step(game);
+    };
+    const hp = game.hero.hp;
+    while (game.hero.dive > 0) overhead();
+    expect(sounds(game)).toContain("surface");
+    // Breaking the surface right under it is safe, for a moment...
+    for (let i = 0; i < SURFACE_GRACE_FRAMES - 2; i++) overhead();
+    expect(game.hero.hp).toBe(hp);
+    // ...but only a moment.
+    for (let i = 0; i < 4; i++) overhead();
+    expect(game.hero.hp).toBeLessThan(hp);
+  });
+
+  it("make monsters lose track of you while you're under", () => {
+    const game = swimmer();
+    enter(game, "overworld:1,2", 4, 6.5, "down");
+    const knight = createEnemy(game, "knight", 6, 4);
+    game.enemies = [knight];
+    step(game);
+    tap(game, "sword");
+    step(game, IDLE, 30);
+    expect(game.hero.dive).toBeGreaterThan(0);
+    expect(knight.mode).not.toBe("chase");
+
+    // Up top again, it spots you straight away.
+    while (game.hero.dive > 0) step(game);
+    step(game, IDLE, 2);
+    expect(knight.mode).toBe("chase");
+  });
+
+  it("keep tools dry: no Switcheroo while swimming", () => {
+    const game = swimmer();
+    grantChest(game, { item: "switcheroo" });
+    finishDialogs(game);
+    enter(game, "overworld:1,2", 4, 6.5, "down");
+    step(game);
+    tap(game, "tool");
+    expect(game.hero.action).toBe("none");
+    expect(game.projectiles).toHaveLength(0);
+  });
+
+  it("bring up sunken treasure from the bottom, once", () => {
+    const game = swimmer();
+    enter(game, "overworld:2,0", 10, 2, "down");
+    step(game);
+    tap(game, "sword");
+    step(game, IDLE, DIVE_REACH_FRAMES + 2);
+    expect(game.hero.dive).toBe(0);
+    expect(game.hero.holding).toBe("gems");
+    expect(game.dialog?.pages[0]).toMatch(/50 gems/);
+    finishDialogs(game);
+    expect(game.inventory.gems).toBe(50);
+    expect(game.flags.has(flags.sunken("overworld:2,0", 10, 2))).toBe(true);
+
+    step(game, IDLE, DIVE_COOLDOWN_FRAMES);
+    tap(game, "sword");
+    step(game, IDLE, DIVE_FRAMES);
+    expect(game.dialog).toBeNull();
+    expect(game.inventory.gems).toBe(50);
+  });
+});
+
+describe("the item button", () => {
+  it("starts empty, and the first tool you find goes straight on it", () => {
+    const game = newGame();
+    expect(game.inventory.equipped).toBeNull();
+    tap(game, "tool");
+    expect(game.hero.action).toBe("none");
+
+    grantChest(game, { item: "switcheroo" });
+    expect(game.inventory.equipped).toBe("switcheroo");
+    // With only one tool, there's nothing to cycle to.
+    expect(cycleTool(game, 1)).toBe(false);
+  });
+
+  it("leaves the Flippers off it: they just work", () => {
+    const game = newGame();
+    grantChest(game, { item: "flippers" });
+    expect(game.inventory.owned.has("flippers")).toBe(true);
+    expect(game.inventory.equipped).toBeNull();
+    expect(game.dialog?.pages.join(" ")).toMatch(/dive/);
+  });
+});
+
+describe("the road to Bramblekeep", () => {
+  it("keeps the keep's gate shut until you have the Gate Key", () => {
+    const game = newGame();
+    enter(game, "overworld:1,0", 7.5, 3, "up");
+    expect(game.tiles[2][7]).toBe("G");
+    tap(game, "sword");
+    expect(game.dialog?.pages[0]).toMatch(/locked/i);
+    finishDialogs(game);
+
+    game.inventory.gateKey = true;
+    tap(game, "sword");
+    expect(game.tiles[2][7]).toBe(":");
+    expect(game.tiles[2][8]).toBe(":");
+    // The gate keeps the key.
+    expect(game.inventory.gateKey).toBe(false);
+    loadRoom(game, "overworld:1,0");
+    expect(game.tiles[2][7]).toBe(":");
+
+    // And now the cave mouth beyond it takes you into the dungeon.
+    step(game, input({ up: true }), 40);
+    step(game, IDLE, 50);
+    expect(game.roomId).toBe("bramblekeep:1,3");
+  });
+
+  it("hides the Gate Key in the Hollow, in a chest that appears once the room is clear", () => {
+    const game = newGame();
+    enter(game, "hollow:0,0", 7.5, 9, "up", true);
+    expect(game.shuttersClosed).toBe(true);
+    expect(game.tiles[5][7]).toBe("_");
+    for (const e of [...game.enemies]) damageEnemy(game, e, 99, null);
+    step(game);
+    expect(game.tiles[5][7]).toBe("C");
+
+    heroAt(game, 7, 6, "up");
+    tap(game, "sword");
+    expect(game.inventory.gateKey).toBe(true);
+    expect(sounds(game)).toContain("fanfare");
+  });
+
+  it("remembers you found the Gate Key after the gate has used it up", () => {
+    const game = newGame();
+    game.flags.add(flags.nanaSword).add(flags.chest("hollow:0,0", 7, 5)).add(flags.door("overworld:1,0", 7, 2));
+    expect(game.inventory.gateKey).toBe(false);
+    const talkTo = (kind: NpcKind) => npcDialog(game, { ...game.npcs[0], kind }).pages.join(" ");
+    expect(talkTo("nana")).toMatch(/found the gate key/i);
+    expect(talkTo("mossbeard")).toMatch(/you found it/i);
+  });
+
+  it("takes you into the Hollow through the cave in Thornthicket", () => {
+    const game = newGame();
+    enter(game, "overworld:0,2", 5.5, 7, "up");
+    step(game, input({ up: true }), 30);
+    step(game, IDLE, 50);
+    expect(game.roomId).toBe("hollow:0,1");
+  });
+});
+
 describe("dungeon mechanics", () => {
+  it("opens the boss door with the boss key, which the door keeps", () => {
+    const game = newGame();
+    enter(game, "bramblekeep:1,1", 7.5, 1, "up");
+    tap(game, "sword");
+    finishDialogs(game);
+    expect(game.tiles[0][7]).toBe("B");
+
+    game.inventory.keys.bramblekeep.big = true;
+    tap(game, "sword");
+    expect(game.tiles[0][7]).not.toBe("B");
+    expect(game.tiles[0][8]).not.toBe("B");
+    expect(game.inventory.keys.bramblekeep.big).toBe(false);
+  });
+
   it("plays a fanfare for the treasure in a big chest", () => {
     const game = newGame();
     game.flags.add(flags.bluePegs);
     enter(game, "bramblekeep:2,1", 13, 1, "right");
     tap(game, "sword");
-    expect(game.inventory.hasBigKey).toBe(true);
+    expect(game.inventory.keys.bramblekeep.big).toBe(true);
     expect(sounds(game)).toContain("fanfare");
     expect(sounds(game)).not.toContain("itemGet");
   });
@@ -254,7 +607,7 @@ describe("dungeon mechanics", () => {
 
   it("swaps places across the chasm with the Switcheroo", () => {
     const game = newGame();
-    game.inventory.hasSwitcheroo = true;
+    game.inventory.owned.add("switcheroo");
     enter(game, "bramblekeep:1,1", 4, 8, "up");
     const crystal = game.props.find((p) => p.y < 80)!;
     const crystalStart = centerOf(crystal);
@@ -268,7 +621,7 @@ describe("dungeon mechanics", () => {
 
   it("holds the bars open once a statue is swapped onto the pressure plate", () => {
     const game = newGame();
-    game.inventory.hasSwitcheroo = true;
+    game.inventory.owned.add("switcheroo");
     enter(game, "bramblekeep:0,1", 2, 2, "right");
     step(game);
     expect(game.barsOpen).toBe(true);
@@ -282,7 +635,7 @@ describe("dungeon mechanics", () => {
 
   it("flips the crystal switch with a bolt from across the pit", () => {
     const game = newGame();
-    game.inventory.hasSwitcheroo = true;
+    game.inventory.owned.add("switcheroo");
     enter(game, "bramblekeep:2,1", 5, 8, "right");
     expect(pegRaised(game, "r")).toBe(true);
     tap(game, "tool");
@@ -344,7 +697,7 @@ describe("defeated enemies", () => {
 describe("bosses", () => {
   it("Captain Clank's shield blocks hits from the front until he's dazed", () => {
     const game = newGame();
-    game.inventory.hasSword = true;
+    game.inventory.owned.add("sword");
     enter(game, "bramblekeep:0,2", 4, 5, "left", true);
     const clank = game.enemies[0];
     clank.facing = "right";
@@ -388,7 +741,7 @@ describe("bosses", () => {
 
   it("Thornback shrugs off hits from the front but not from behind", () => {
     const game = newGame();
-    game.inventory.hasSword = true;
+    game.inventory.owned.add("sword");
     enter(game, "bramblekeep:1,0", 7.5, 7, "up", true);
     const boss = game.enemies[0];
     boss.angle = 0;
@@ -408,7 +761,7 @@ describe("bosses", () => {
 
   it("swapping with Thornback leaves it facing the wrong way", () => {
     const game = newGame();
-    game.inventory.hasSwitcheroo = true;
+    game.inventory.owned.add("switcheroo");
     enter(game, "bramblekeep:1,0", 7.5, 7, "up", true);
     const boss = game.enemies[0];
     boss.angle = 0;
@@ -425,7 +778,7 @@ describe("bosses", () => {
 
   it("has pots in its lair that break under the sword", () => {
     const game = newGame();
-    game.inventory.hasSword = true;
+    game.inventory.owned.add("sword");
     game.flags.add(flags.boss("thornback"));
     enter(game, "bramblekeep:1,0", 3, 9, "left");
     expect(game.tiles[9][2]).toBe("p");
@@ -480,11 +833,245 @@ describe("bosses", () => {
   });
 });
 
+describe("the road to Fernwhistle", () => {
+  it("is cut off by a gorge, its drawbridge jammed up", () => {
+    const game = newGame();
+    enter(game, "overworld:2,1", 12.5, 7, "up");
+    expect(game.tiles[5][12]).toBe("v");
+    step(game, input({ up: true }), 30);
+    expect(game.hero.action).toBe("fall");
+  });
+
+  it("comes down when Thornback does, with a quake you feel all the way across the forest", () => {
+    const game = newGame();
+    enter(game, THORNBACK_ROOM, 7.5, 8, "up");
+    const boss = createEnemy(game, "thornback", 7.5, 4);
+    game.enemies = [boss];
+    finishBoss(game, boss);
+    expect(game.dialog?.pages).toEqual(QUAKE_PAGES);
+    expect(sounds(game)).toContain("quake");
+    expect(game.shake).toBeGreaterThan(60);
+    finishDialogs(game);
+
+    enter(game, "overworld:2,1", 12.5, 7, "up");
+    expect(game.tiles[5][12]).toBe("=");
+    step(game, input({ up: true }), 60);
+    expect(game.hero.action).toBe("none");
+    expect(game.hero.y).toBeLessThan(4 * 16);
+  });
+
+  it("leads into Fernwhistle, a room so big the camera follows you around it", () => {
+    const game = newGame();
+    game.flags.add(flags.boss("thornback"));
+    enter(game, "overworld:2,1", 14, 2, "right");
+    step(game, input({ right: true }), 30);
+    expect(game.roomId).toBe(FERNWHISTLE);
+    step(game, IDLE, SCROLL_FRAMES);
+    expect(game.transition).toBeNull();
+    // Eastfield is the second screen down, so its row 2 is the village's row 13.
+    expect(Math.floor((game.hero.y + game.hero.h / 2) / 16)).toBe(13);
+
+    // Against the village's west edge the view stops at the edge...
+    const start = cameraFor(game.roomId, game.hero);
+    expect(start.x).toBe(0);
+    expect(start.y).toBe(Math.round(game.hero.y + game.hero.h / 2 - 88));
+    // ...and out in the middle it keeps the hero centered.
+    step(game, input({ right: true }), 200);
+    expect(game.roomId).toBe(FERNWHISTLE);
+    expect(cameraFor(game.roomId, game.hero).x).toBe(Math.round(game.hero.x + game.hero.w / 2 - 128));
+  });
+
+  it("fills in the village on the map one screen at a time", () => {
+    const game = newGame();
+    game.flags.add(flags.boss("thornback"));
+    enter(game, FERNWHISTLE, 2, 13, "right");
+    expect(game.flags.has(flags.seen("overworld:3,1"))).toBe(true);
+    expect(game.flags.has(flags.seen("overworld:4,1"))).toBe(false);
+    expect(game.flags.has(flags.seen("overworld:3,0"))).toBe(false);
+    step(game, input({ right: true }), 220);
+    expect(game.flags.has(flags.seen("overworld:4,1"))).toBe(true);
+  });
+
+  it("saves and restores a spot anywhere in the big room", () => {
+    const game = newGame();
+    game.respawn = { roomId: FERNWHISTLE, x: 400, y: 300, facing: "down" };
+    const save = sanitizeSave(JSON.parse(JSON.stringify(snapshotSave(game))));
+    expect(save?.respawn).toEqual(game.respawn);
+  });
+});
+
+describe("Fernwhistle's side quests", () => {
+  function inFernwhistle(col: number, row: number, facing: Direction): GameState {
+    const game = newGame();
+    game.flags.add(flags.boss("thornback"));
+    enter(game, FERNWHISTLE, col, row, facing);
+    return game;
+  }
+
+  it("has ducklings that run from you when you get close", () => {
+    const game = inFernwhistle(24, 15, "down");
+    const duck = game.npcs.find((n) => n.tag === "duckling-square")!;
+    const before = distance(centerOf(duck), centerOf(game.hero));
+    step(game, input({ down: true }), 12);
+    expect(duck.fleeing).toBe(true);
+    expect(sounds(game)).toContain("peep");
+    step(game, IDLE, 20);
+    expect(distance(centerOf(duck), centerOf(game.hero))).toBeGreaterThan(before - 12);
+  });
+
+  it("catches a duckling you walk right up to, and sends it home to the pond", () => {
+    const game = inFernwhistle(22, 18, "right");
+    const duck = game.npcs.find((n) => n.tag === "duckling-square")!;
+    placeHero(game, { roomId: game.roomId, x: duck.x - game.hero.w - 1, y: duck.y - 2, facing: "right" });
+    step(game);
+    expect(game.flags.has(flags.found("duckling-square"))).toBe(true);
+    expect(game.dialog?.pages[0]).toMatch(/1 of 4/);
+    finishDialogs(game);
+    const home = boxAtTile(19, 26, duck.w, duck.h);
+    expect({ x: duck.x, y: duck.y }).toEqual(home);
+    expect(duck.wanders).toBe(false);
+  });
+
+  it("gets you Mama Mallard's spare Flippers once all four are home", () => {
+    const game = newGame();
+    game.flags.add(flags.boss("thornback"));
+    for (const tag of DUCKLINGS) game.flags.add(flags.found(tag));
+    enter(game, FERNWHISTLE, 19, 25, "right");
+    expect(game.npcs.filter((n) => n.kind === "duckling").every((n) => !n.wanders)).toBe(true);
+    tap(game, "sword");
+    expect(game.dialog?.speaker).toBe("Mama Mallard");
+    finishDialogs(game);
+    expect(game.inventory.owned.has("flippers")).toBe(true);
+    expect(game.flags.has(flags.ducklingsThanked)).toBe(true);
+  });
+
+  it("delivers Pidge's letter to Mossbeard, and his reply to Marigold, for a heart container", () => {
+    const game = newGame();
+    enter(game, "interior:2,0", 7.5, 5, "up");
+    tap(game, "sword");
+    expect(game.dialog?.speaker).toBe("Postmaster Pidge");
+    finishDialogs(game);
+    expect(game.flags.has(flags.letter)).toBe(true);
+
+    enter(game, "overworld:1,2", 4, 8, "down");
+    tap(game, "sword");
+    expect(game.dialog?.speaker).toBe("Mossbeard");
+    finishDialogs(game);
+    expect(game.flags.has(flags.letter)).toBe(false);
+    expect(game.flags.has(flags.reply)).toBe(true);
+
+    const hearts = game.hero.maxHp;
+    enter(game, "interior:6,0", 9.5, 5, "up");
+    tap(game, "sword");
+    expect(game.dialog?.speaker).toBe("Marigold");
+    finishDialogs(game);
+    expect(game.flags.has(flags.reply)).toBe(false);
+    expect(game.flags.has(flags.mailDelivered)).toBe(true);
+    expect(game.hero.maxHp).toBe(hearts + 2);
+  });
+
+  it("plays hide and seek: talk to a hider to find them, and Tilly pays up for all three", () => {
+    const game = inFernwhistle(21, 2, "left");
+    tap(game, "sword");
+    expect(game.dialog?.speaker).toBe("Pip");
+    finishDialogs(game);
+    expect(game.flags.has(flags.found("pip"))).toBe(true);
+    // Off he goes, back to the square.
+    const pip = game.npcs.find((n) => n.kind === "pip")!;
+    expect({ x: pip.x, y: pip.y }).toEqual(boxAtTile(19, 20, 12, 12));
+
+    heroAt(game, 11, 2, "left");
+    tap(game, "sword");
+    expect(game.dialog?.speaker).toBe("Bo");
+    finishDialogs(game);
+
+    enter(game, "interior:3,0", 13, 3, "left");
+    tap(game, "sword");
+    expect(game.dialog?.speaker).toBe("Fern");
+    finishDialogs(game);
+    // She's gone home: not here any more, but in the square.
+    expect(game.npcs.some((n) => n.kind === "fern")).toBe(false);
+    enter(game, FERNWHISTLE, 18, 18, "down");
+    expect(game.npcs.some((n) => n.kind === "fern")).toBe(true);
+
+    const gems = game.inventory.gems;
+    tap(game, "sword");
+    expect(game.dialog?.speaker).toBe("Tilly");
+    finishDialogs(game);
+    expect(game.inventory.gems).toBe(gems + 50);
+    expect(game.flags.has(flags.seekPrize)).toBe(true);
+  });
+
+  it("dives up the Mayor's ring from beside the pier, and he trades a heart container for it", () => {
+    const game = inFernwhistle(5, 30, "down");
+    game.inventory.owned.add("flippers");
+    step(game);
+    tap(game, "sword");
+    step(game, IDLE, DIVE_REACH_FRAMES + 2);
+    expect(game.hero.holding).toBe("ring");
+    finishDialogs(game);
+    expect(game.flags.has(flags.ring)).toBe(true);
+
+    const hearts = game.hero.maxHp;
+    heroAt(game, 7.5, 28, "down");
+    tap(game, "sword");
+    expect(game.dialog?.speaker).toBe("Mayor Bellwether");
+    finishDialogs(game);
+    expect(game.flags.has(flags.ring)).toBe(false);
+    expect(game.flags.has(flags.ringReturned)).toBe(true);
+    expect(game.hero.maxHp).toBe(hearts + 2);
+  });
+
+  it("has a baker whose buns fill your hearts right back up", () => {
+    const game = newGame();
+    enter(game, "interior:3,0", 5.5, 5, "up");
+    game.hero.hp = 1;
+    tap(game, "sword");
+    expect(game.dialog?.speaker).toBe("Bun");
+    finishDialogs(game);
+    expect(game.hero.hp).toBe(game.hero.maxHp);
+  });
+
+  it("has an inn with beds to nap in", () => {
+    const game = newGame();
+    enter(game, "interior:4,0", 3, 3, "left");
+    tap(game, "sword");
+    expect(game.dialog?.pages).toEqual(INN_BED_PAGES);
+    expect(game.dialog?.choice?.options[0]).toBe("Take a nap");
+  });
+});
+
+describe("the soundtrack", () => {
+  it("turns menacing when the shutters slam shut on you, and calms down once the room's clear", () => {
+    const game = newGame();
+    // In the Hollow's doorway the shutters are still open...
+    enter(game, "hollow:0,0", 7.5, 10, "up", true);
+    expect(musicFor(game)).toBe("dungeon");
+    // ...one step inside, they shut, and the music turns.
+    step(game, input({ up: true }), 16);
+    expect(game.shuttersClosed).toBe(true);
+    expect(musicFor(game)).toBe("danger");
+
+    game.enemies = [];
+    step(game);
+    expect(game.shuttersClosed).toBe(false);
+    expect(musicFor(game)).toBe("dungeon");
+  });
+
+  it("plays the menacing theme for Captain Clank and saves the boss theme for Thornback", () => {
+    const game = newGame();
+    enter(game, "bramblekeep:0,2", 13, 5, "left", true);
+    expect(musicFor(game)).toBe("danger");
+    enter(game, THORNBACK_ROOM, 7.5, 8, "up", true);
+    expect(musicFor(game)).toBe("boss");
+  });
+});
+
 describe("determinism", () => {
   it("plays out identically from the same seed and inputs", () => {
     const run = () => {
       const game = createGame(123);
-      game.inventory.hasSword = true;
+      game.inventory.owned.add("sword");
       const script: Input[] = [input({ left: true }), input({ up: true }), input({ sword: true }, { sword: true }), IDLE];
       for (let i = 0; i < 600; i++) update(game, script[Math.floor(i / 37) % script.length]);
       return JSON.stringify({ ...game, flags: [...game.flags] });

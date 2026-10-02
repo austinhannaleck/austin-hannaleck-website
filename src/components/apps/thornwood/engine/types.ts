@@ -12,7 +12,7 @@ export const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
 export type Box = { x: number; y: number; w: number; h: number };
 export type Point = { x: number; y: number };
 
-export type Area = "overworld" | "bramblekeep";
+export type Area = "overworld" | "bramblekeep" | "hollow" | "interior";
 
 // ---------------------------------------------------------------------------
 // World geometry. Positions are in "pixels" of a 16px tile grid, room-local
@@ -48,6 +48,18 @@ export const HERO_KNOCKBACK_FRAMES = 9;
 export const FALL_FRAMES = 40;
 export const DYING_FRAMES = 80;
 
+// The Flippers: swimming is slower than walking, and a dive lasts a
+// little over a second, with a short breather before the next one.
+// Sunken treasure is only within reach once you've been under a moment.
+export const SWIM_SPEED = 0.95;
+export const DIVE_FRAMES = 75;
+export const DIVE_COOLDOWN_FRAMES = 18;
+export const DIVE_REACH_FRAMES = 20;
+// Coming back up, you're still out of reach for a moment, so a bat that
+// happens to be hovering right there can't catch you the instant you
+// break the surface.
+export const SURFACE_GRACE_FRAMES = 30;
+
 // The Switcheroo: fires a bolt that trades places with whatever it hits.
 export const BOLT_SPEED = 4.5;
 export const BOLT_RANGE = 11 * TILE;
@@ -72,14 +84,60 @@ export const SHOP_HEART_PRICE = 40;
 // ---------------------------------------------------------------------------
 // Items and inventory.
 // ---------------------------------------------------------------------------
-export type ItemId = "sword" | "switcheroo" | "smallKey" | "bigKey" | "heartContainer" | "sunstone" | "gems";
+export type ItemId =
+  | "sword"
+  | "switcheroo"
+  | "flippers"
+  | "smallKey"
+  | "bigKey"
+  | "gateKey"
+  | "heartContainer"
+  | "sunstone"
+  | "gems"
+  // Things carried for Fernwhistle's side quests (see quests.ts).
+  | "letter"
+  | "reply"
+  | "ring";
+
+// Tools go on the item button, one at a time, picked on the pause screen.
+// Everything else (the sword, the Flippers, keys) just works when you have
+// it. TOOLS is the order they sit in the pause screen's item grid.
+export type ToolId = "switcheroo";
+export const TOOLS: ToolId[] = ["switcheroo"];
+
+// The items you keep for good once found (unlike keys, which get used up,
+// or gems). Inventory.owned says which of these you have, and the save
+// stores that list as is, so a new one only needs adding here. The type
+// comes from the list so the two can't drift apart.
+export const KEPT_ITEMS = [
+  "sword",
+  // Let you swim, and dive, in deep water.
+  "flippers",
+  ...TOOLS,
+] as const satisfies readonly ItemId[];
+export type KeptItem = (typeof KEPT_ITEMS)[number];
+
+// The areas with locked doors and keys of their own. A key found in one
+// only opens that dungeon's doors.
+export const DUNGEONS = ["bramblekeep"] as const satisfies readonly Area[];
+export type Dungeon = (typeof DUNGEONS)[number];
+
+// One dungeon's keys. Any small key opens any locked door ("L") in its
+// dungeon; the boss key ("big", the item "bigKey") opens only the boss door
+// ("B"). A dungeon has one boss door, so its boss key is a yes or no. See
+// the dungeon-design skill (.claude/skills/) for the full rules.
+export type DungeonKeys = { small: number; big: boolean };
 
 export type Inventory = {
-  hasSword: boolean;
-  hasSwitcheroo: boolean;
+  owned: Set<KeptItem>;
+  // The tool on the item button.
+  equipped: ToolId | null;
   gems: number;
-  smallKeys: number;
-  hasBigKey: boolean;
+  // Every key, these and the Gate Key, is used up by the door it opens.
+  keys: Record<Dungeon, DungeonKeys>;
+  // Opens the overgrown gate in front of Bramblekeep. It's found in the
+  // Hollow and used out in the overworld, so it isn't any dungeon's key.
+  gateKey: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -105,6 +163,13 @@ export type Hero = Box & {
   // Shown held overhead (the classic "item get" pose) while an item's
   // dialog is open.
   holding: ItemId | null;
+  // In deep water (which takes the Flippers).
+  swimming: boolean;
+  // Steps left underwater, or 0 when at the surface.
+  dive: number;
+  diveCooldown: number;
+  // Steps left of the grace period after coming up (SURFACE_GRACE_FRAMES).
+  surfacing: number;
 };
 
 export type EnemyKind = "jellop" | "flitter" | "knight" | "spitbug" | "clank" | "thornback";
@@ -144,7 +209,28 @@ export type PropKind = "statue" | "crystal";
 // crystals just float there waiting to be swapped with.
 export type Prop = Box & { id: number; kind: PropKind; swapFlash: number };
 
-export type NpcKind = "nana" | "banjo" | "ribbit" | "moanica" | "fumbleton";
+export type NpcKind =
+  | "nana"
+  | "banjo"
+  | "ribbit"
+  | "moanica"
+  | "fumbleton"
+  | "mossbeard"
+  | "pinch"
+  // Fernwhistle
+  | "stout"
+  | "mallard"
+  | "duckling"
+  | "pidge"
+  | "marigold"
+  | "bellwether"
+  | "tilly"
+  | "bo"
+  | "pip"
+  | "fern"
+  | "bun"
+  | "hopsworth"
+  | "ott";
 
 export type Npc = Box & {
   id: number;
@@ -158,6 +244,12 @@ export type Npc = Box & {
   // Counts down after a conversation; the renderer uses it for a little
   // "excited" bounce.
   talkFrames: number;
+  // Quest villagers (a runaway duckling, a hiding child) are tagged, and
+  // have a home they go back to once you've found them.
+  tag: string | null;
+  home: Point | null;
+  // A duckling that's spotted you and is running for it.
+  fleeing: boolean;
 };
 
 export type DropKind = "gem" | "bigGem" | "heart" | "heartContainer" | "sunstone";
@@ -206,7 +298,21 @@ export type Particle = {
 // ---------------------------------------------------------------------------
 // Dialog, transitions, events, input.
 // ---------------------------------------------------------------------------
-export type DialogAction = "none" | "giveSword" | "banjoGift" | "buyHeart" | "win";
+export type DialogAction =
+  | "none"
+  | "giveSword"
+  | "banjoGift"
+  | "buyHeart"
+  | "rest"
+  | "snack"
+  | "win"
+  // Fernwhistle's side quests (see quests.ts).
+  | "takeLetter"
+  | "takeReply"
+  | "deliverReply"
+  | "duckReward"
+  | "seekPrize"
+  | "returnRing";
 
 export type DialogChoice = {
   options: [string, string];
@@ -231,8 +337,21 @@ export type Dialog = {
 export type Spawn = { roomId: string; x: number; y: number; facing: Direction };
 
 export type Transition =
-  | { kind: "scroll"; dir: Direction; frame: number; fromRoomId: string; start: Point }
-  | { kind: "fadeOut"; frame: number; to: Spawn }
+  | {
+      kind: "scroll";
+      dir: Direction;
+      frame: number;
+      fromRoomId: string;
+      // The room being left, exactly as it was (cut bushes and all), so it
+      // can be drawn sliding away.
+      fromTiles: string[][];
+      // Where the view slides from and to, in area pixels (see camera.ts).
+      fromCamera: Point;
+      toCamera: Point;
+      start: Point;
+    }
+  // `hold` keeps the screen black a little longer (a nap, say).
+  | { kind: "fadeOut"; frame: number; to: Spawn; hold?: number }
   | { kind: "fadeIn"; frame: number };
 
 export type SoundName =
@@ -270,6 +389,14 @@ export type SoundName =
   | "bossDie"
   | "dying"
   | "menu"
+  | "mapOpen"
+  | "splash"
+  | "dive"
+  | "surface"
+  | "bell"
+  | "lullaby"
+  | "quake"
+  | "peep"
   | "bark";
 
 export type GameEvent =

@@ -20,6 +20,21 @@ export const GEM = [
   ".........",
 ];
 
+// The Flippers: a pair of webbed green fins with brown heel straps.
+export const FLIPPERS = [
+  "..................",
+  ".l.l.l.l..l.l.l.l.",
+  ".lglglgl..lglglgl.",
+  ".lgggggl..lgggggl.",
+  ".gggggGG..GGggggg.",
+  "..gggGG....GGggg..",
+  "..ggGGG....GGGgg..",
+  "...gGG......GGg...",
+  "...nnn......nnn...",
+  "...GGd......dGG...",
+  "..................",
+];
+
 export const SMALL_KEY = [
   "........",
   "..aaa...",
@@ -364,6 +379,27 @@ export const PLATE_DOWN = [
   "................",
 ];
 
+// The overgrown iron gate in front of Bramblekeep, with a leaf-shaped
+// lock. Full-tile, unoutlined.
+export const GATE = [
+  "kkkkkkkkkkkkkkkk",
+  "kAAAAAAAAAAAAAAk",
+  "kaAeaAeaAeaAeaAk",
+  "kaAegGeaAeaAeaAk",
+  "kaAeaGgaAeaAegGk",
+  "kaAeaAeyyyaAeGAk",
+  "kgGeaAyzzzYAeaAk",
+  "kaGgaAyzeeYAeaAk",
+  "kaAGgAyzeYYAgGAk",
+  "kaAeaAeYYYaAGaAk",
+  "kaAeaAeaAeaGgaAk",
+  "kaAegGeaAegGeaAk",
+  "kaAeaGgaAGgAeaAk",
+  "kaAeaAeaAeaAeaAk",
+  "kAAAAAAAAAAAAAAk",
+  "kkkkkkkkkkkkkkkk",
+];
+
 // Full-tile, unoutlined.
 export const DOOR = [
   "kkkkkkkkkkkkkkkk",
@@ -401,4 +437,34 @@ export const BARS = [
   ".wA..wA..wA..wA.",
   "kAAAAAAAAAAAAAAk",
   "kiiiiiiiiiiiiiik",
+];
+
+// ---------------------------------------------------------------------------
+// Fernwhistle's quest items: a letter (and Mossbeard's muddy reply), and
+// the Mayor's ring.
+// ---------------------------------------------------------------------------
+export const LETTER = [
+  "..............",
+  ".wwwwwwwwwwww.",
+  ".wEwwwwwwwwEw.",
+  ".wwEwwwwwwEww.",
+  ".wwwEwwwwEwww.",
+  ".wwwwErrEwwww.",
+  ".wwwwwrrwwwww.",
+  ".wwwwwwwwwwww.",
+  ".EEEEEEEEEEEE.",
+  "..............",
+];
+
+export const RING = [
+  "..........",
+  "....tu....",
+  "...tTTu...",
+  "...yzzy...",
+  "..yY..zy..",
+  "..y....y..",
+  "..Y....y..",
+  "..YY..yY..",
+  "...YYYY...",
+  "..........",
 ];

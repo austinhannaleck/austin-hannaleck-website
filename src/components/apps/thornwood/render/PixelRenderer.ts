@@ -1,4 +1,5 @@
 import { BOSS_NAMES, ENEMY_STATS } from "../engine/actors";
+import { areaCameraFor } from "../engine/camera";
 import { vectorOf } from "../engine/directions";
 import { swordAim } from "../engine/hero";
 import { flags as flagNames, initialTiles, pegRaised } from "../engine/room";
@@ -8,9 +9,7 @@ import {
   FADE_FRAMES,
   FALL_FRAMES,
   HURT_INVULN_FRAMES,
-  ROOM_COLS,
   ROOM_H,
-  ROOM_ROWS,
   ROOM_W,
   SCROLL_FRAMES,
   SPIN_FRAMES,
@@ -24,8 +23,11 @@ import {
   type Point,
   type Prop,
 } from "../engine/types";
-import { ROOMS, areaOf, tileKey } from "../engine/world";
+import { ROOMS, allRoomIds, areaOf, roomOrigin, roomSize, tileKey } from "../engine/world";
+import type { PauseFocus } from "../ui/inventory";
+import type { MapView } from "../ui/map";
 import type { MenuItem } from "../ui/menu";
+import { MapPainter, drawMap } from "./map";
 import type { Sprite } from "./pixelart";
 import {
   HUD_H,
@@ -41,7 +43,7 @@ import {
   drawVictory,
 } from "./screens";
 import { getSprites, type Sprites } from "./sprites";
-import { buildRoomArt, drawGroundAnimation, type RoomArt } from "./tiles";
+import { COLORS, buildRoomArt, drawGroundAnimation, drawbridgeDeck, type RoomArt } from "./tiles";
 
 // Draws a GameState as a 16-bit-style screen: 256 pixels wide (the SNES's
 // native width), a 32px HUD over a 256x176 view of the current room. The
@@ -56,11 +58,15 @@ export type RenderUi = {
   menu: { items: MenuItem[]; cursor: number } | null;
   bestFrames: number | null;
   bossIntro: { boss: BossId; startedAt: number } | null;
+  // Set while the pause-screen map is open (the game itself stays paused).
+  map: MapView | null;
+  // Where the cursor is on the pause screen: the item grid or the menu.
+  pauseFocus: PauseFocus;
 };
 
 type Sorted = { sortY: number; draw: () => void };
 
-const DYNAMIC = new Set(["b", "p", "C", "L", "B", "S", "D", "r", "u", "P", "Q"]);
+const DYNAMIC = new Set(["b", "p", "C", "L", "B", "G", "S", "D", "r", "u", "P", "Q", "Y"]);
 const SPIN_ORDER: Direction[] = ["down", "left", "up", "right"];
 
 function canvas(w: number, h: number): HTMLCanvasElement {
@@ -85,6 +91,7 @@ export class PixelRenderer {
   private mosaic = canvas(ROOM_W, ROOM_H);
   private sprites: Sprites;
   private rooms = new Map<string, RoomArt>();
+  private map = new MapPainter();
   private tileAnim = new Map<string, number>();
   private banner: { name: string; startedAt: number } | null = null;
   private lastRoomName: string | null = null;
@@ -123,6 +130,10 @@ export class PixelRenderer {
 
     if (state.status === "title") {
       drawTitle(ctx, this.sprites, ui.menu?.items ?? [], ui.menu?.cursor ?? 0, ui.bestFrames, time);
+      return;
+    }
+    if (state.status === "paused" && ui.map) {
+      drawMap(ctx, state, ui.map, this.map, this.sprites, time);
       return;
     }
 
@@ -166,7 +177,7 @@ export class PixelRenderer {
 
     const items = ui.menu?.items ?? [];
     const cursor = ui.menu?.cursor ?? 0;
-    if (state.status === "paused") drawPause(ctx, state, items, cursor, this.sprites, time);
+    if (state.status === "paused") drawPause(ctx, state, items, cursor, ui.pauseFocus, this.sprites, time);
     if (state.status === "gameover") drawGameOver(ctx, items, cursor, this.sprites, time);
     if (state.status === "won") drawVictory(ctx, state, items, cursor, ui.bestFrames, this.sprites, time);
   }
@@ -196,23 +207,65 @@ export class PixelRenderer {
     f.fillStyle = "#000";
     f.fillRect(0, 0, ROOM_W, ROOM_H);
 
-    let offset: Point = { x: 0, y: 0 };
+    // The camera, in area pixels: following the hero, or mid-slide from
+    // one room's view to the next. Each room is drawn at its place in the
+    // area, relative to it.
     const t = state.transition;
+    let camera = areaCameraFor(state.roomId, state.hero);
     if (t?.kind === "scroll") {
       const p = smooth(Math.min(1, t.frame / SCROLL_FRAMES));
-      const v = vectorOf(t.dir);
-      offset = { x: Math.round(v.x * ROOM_W * (1 - p)), y: Math.round(v.y * ROOM_H * (1 - p)) };
-      const from = { x: offset.x - v.x * ROOM_W, y: offset.y - v.y * ROOM_H };
-      const fromTiles = initialTiles(t.fromRoomId, state.flags);
-      this.drawGround(state, t.fromRoomId, fromTiles, from, time, false);
-      for (const prop of this.room(t.fromRoomId).props) prop.draw(f, from.x, from.y, time);
+      camera = {
+        x: Math.round(t.fromCamera.x + (t.toCamera.x - t.fromCamera.x) * p),
+        y: Math.round(t.fromCamera.y + (t.toCamera.y - t.fromCamera.y) * p),
+      };
+      // Mid-slide, the view can take in more than the two rooms (sliding
+      // diagonally out of a big room, say), so draw everything it overlaps.
+      for (const id of this.roomsInView(state.roomId, camera)) {
+        if (id === state.roomId) continue;
+        const tiles = id === t.fromRoomId ? t.fromTiles : initialTiles(id, state.flags);
+        const o = this.offsetOf(id, camera);
+        this.drawGround(state, id, tiles, o, time, false);
+        for (const prop of this.room(id).props) {
+          if (this.inView(prop.sortY + o.y)) prop.draw(f, o.x, o.y, time, tiles);
+        }
+      }
     }
+    const offset = this.offsetOf(state.roomId, camera);
 
     this.drawGround(state, state.roomId, state.tiles, offset, time, true);
     this.drawShadows(state, offset, time);
     this.drawSorted(state, offset, time);
     this.drawOverhead(state, offset, time);
-    if (areaOf(state.roomId) === "bramblekeep") this.drawLighting(state, offset, time);
+    // The cave and the dungeon are lit by torchlight; houses are cozy and bright.
+    const area = areaOf(state.roomId);
+    if (area === "bramblekeep" || area === "hollow") this.drawLighting(state, offset, time);
+  }
+
+  // Every room in the area that shows at least partly through the view.
+  private roomsInView(roomId: string, camera: Point): string[] {
+    return allRoomIds(areaOf(roomId)).filter((id) => {
+      const origin = roomOrigin(id);
+      const { cols, rows } = roomSize(id);
+      return (
+        origin.x < camera.x + ROOM_W &&
+        origin.x + cols * TILE > camera.x &&
+        origin.y < camera.y + ROOM_H &&
+        origin.y + rows * TILE > camera.y
+      );
+    });
+  }
+
+  // Where a room's top-left corner lands on the playfield.
+  private offsetOf(roomId: string, camera: Point): Point {
+    const origin = roomOrigin(roomId);
+    return { x: origin.x - camera.x, y: origin.y - camera.y };
+  }
+
+  // Whether something standing with its feet at this height on the
+  // playfield could show. Nothing in the world stands taller than the
+  // windmill, so that's the margin above.
+  private inView(footY: number): boolean {
+    return footY > -2 && footY - 96 < ROOM_H;
   }
 
   private drawGround(state: GameState, roomId: string, tiles: string[][], o: Point, time: number, current: boolean): void {
@@ -220,11 +273,17 @@ export class PixelRenderer {
     const art = this.room(roomId);
     f.drawImage(art.ground, o.x, o.y);
     drawGroundAnimation(f, art, o.x, o.y, time);
+    this.drawSunken(state, roomId, o, time);
 
+    // Only the tiles on screen (plus one either side) can need drawing.
     const map = ROOMS[roomId].map;
     const p = this.sprites.props;
-    for (let row = 0; row < ROOM_ROWS; row++) {
-      for (let col = 0; col < ROOM_COLS; col++) {
+    const c0 = Math.max(0, Math.floor(-o.x / TILE) - 1);
+    const c1 = Math.min(map[0].length - 1, Math.floor((ROOM_W - o.x) / TILE) + 1);
+    const r0 = Math.max(0, Math.floor(-o.y / TILE) - 1);
+    const r1 = Math.min(map.length - 1, Math.floor((ROOM_H - o.y) / TILE) + 1);
+    for (let row = r0; row <= r1; row++) {
+      for (let col = c0; col <= c1; col++) {
         const authored = map[row][col];
         if (!DYNAMIC.has(authored)) continue;
         const ch = tiles[row][col];
@@ -253,6 +312,12 @@ export class PixelRenderer {
             this.drawSliding(across ? door.across : door.along, x, y, shut);
             break;
           }
+          case "G": {
+            // Bramblekeep's gate sinks into the ground once unlocked.
+            const shut = this.animate(key, ch === "G" ? 1 : 0, current);
+            this.drawSliding(p.gate, x, y, shut);
+            break;
+          }
           case "S":
           case "D": {
             const closed = authored === "S" ? current && state.shuttersClosed : !(current && state.barsOpen);
@@ -270,6 +335,10 @@ export class PixelRenderer {
           }
           case "P":
             f.drawImage((current && state.barsOpen ? p.plate.down : p.plate.up).img, x, y);
+            break;
+          case "Y":
+            // The Fernwhistle drawbridge, once it's down.
+            if (ch === "=") f.drawImage(drawbridgeDeck(map[row][col - 1] !== "Y", map[row][col + 1] !== "Y"), x, y);
             break;
           case "Q": {
             const blue = state.flags.has(flagNames.bluePegs);
@@ -307,12 +376,15 @@ export class PixelRenderer {
 
   private drawShadows(state: GameState, o: Point, time: number): void {
     const hero = state.hero;
-    if (hero.action !== "fall" && hero.action !== "dying") this.shadow(o.x + hero.x + hero.w / 2, o.y + hero.y + hero.h - 2, 12);
+    if (hero.action !== "fall" && hero.action !== "dying" && !hero.swimming) this.shadow(o.x + hero.x + hero.w / 2, o.y + hero.y + hero.h - 2, 12);
     for (const e of state.enemies) {
       const w = e.kind === "thornback" ? 30 : e.kind === "clank" ? 18 : 12;
       this.shadow(o.x + e.x + e.w / 2, o.y + e.y + e.h - 2, w);
     }
-    for (const npc of state.npcs) this.shadow(o.x + npc.x + npc.w / 2, o.y + npc.y + npc.h - 2, npc.kind === "moanica" ? 8 + Math.sin(time * 1.8) : 12);
+    for (const npc of state.npcs) {
+      const w = npc.kind === "moanica" ? 8 + Math.sin(time * 1.8) : npc.kind === "duckling" ? 7 : 12;
+      this.shadow(o.x + npc.x + npc.w / 2, o.y + npc.y + npc.h - (npc.kind === "duckling" ? 1 : 2), w);
+    }
     for (const d of state.drops) this.shadow(o.x + d.x + d.w / 2, o.y + d.y + d.h, d.w);
     for (const p of state.props) if (p.kind === "crystal") this.shadow(o.x + p.x + p.w / 2, o.y + p.y + p.h - 1, 10);
   }
@@ -321,7 +393,7 @@ export class PixelRenderer {
     const list: Sorted[] = [];
     const f = this.fctx;
     for (const prop of this.room(state.roomId).props) {
-      list.push({ sortY: prop.sortY + o.y, draw: () => prop.draw(f, o.x, o.y, time) });
+      if (this.inView(prop.sortY + o.y)) list.push({ sortY: prop.sortY + o.y, draw: () => prop.draw(f, o.x, o.y, time, state.tiles) });
     }
     const hero = state.hero;
     list.push({ sortY: o.y + hero.y + hero.h, draw: () => this.drawHero(state, o, time) });
@@ -329,6 +401,18 @@ export class PixelRenderer {
     for (const npc of state.npcs) list.push({ sortY: o.y + npc.y + npc.h, draw: () => this.drawNpc(npc, o, time) });
     for (const prop of state.props) list.push({ sortY: o.y + prop.y + prop.h, draw: () => this.drawProp(prop, o, time) });
     for (const d of state.drops) list.push({ sortY: o.y + d.y + d.h, draw: () => this.drawDrop(d, o, time) });
+    // Wares for sale sit on top of the shop counter until they're bought.
+    if (!state.flags.has(flagNames.shopHeart)) {
+      ROOMS[state.roomId].map.forEach((line, row) => {
+        for (let col = 0; col < line.length; col++) {
+          if (line[col] !== "w") continue;
+          const s = this.sprites.items.heartContainer;
+          const x = o.x + col * TILE + TILE / 2 - s.w / 2;
+          const y = o.y + row * TILE - s.h + 1 - (Math.floor(time * 2) % 2);
+          list.push({ sortY: o.y + row * TILE + TILE - 0.5, draw: () => this.blit(s, x, y) });
+        }
+      });
+    }
     list.sort((a, b) => a.sortY - b.sortY);
     for (const item of list) item.draw();
   }
@@ -356,6 +440,11 @@ export class PixelRenderer {
     const hurt = hero.invulnFrames > 12;
     if (hurt && hero.action !== "dying" && sinceHurt > 10 && Math.floor(hero.invulnFrames / 3) % 2 === 0) return;
     const flash = hurt && sinceHurt <= 10 && sinceHurt % 4 < 2;
+
+    if (hero.swimming && hero.action !== "dying") {
+      this.drawSwimmer(state, cx, footY, time, flash);
+      return;
+    }
 
     let body: Sprite;
     let facing = hero.facing;
@@ -403,6 +492,75 @@ export class PixelRenderer {
     if (hero.holding) this.drawHeld(hero.holding, cx, footY - 23, time);
   }
 
+  // Out in deep water only the head and shoulders show, bobbing in a ring
+  // of foam; underwater, just a dark shape gliding along under the
+  // surface (the engine supplies the bubbles).
+  private drawSwimmer(state: GameState, cx: number, footY: number, time: number, flash: boolean): void {
+    const hero = state.hero;
+    const f = this.fctx;
+    const waterline = Math.round(footY - 3);
+    if (hero.dive > 0) {
+      f.fillStyle = "rgba(16, 36, 96, 0.45)";
+      f.fillRect(Math.round(cx - 6), waterline - 3, 12, 5);
+      f.fillRect(Math.round(cx - 4), waterline - 4, 8, 7);
+      return;
+    }
+
+    const sp = this.sprites;
+    const stroke = Math.floor(hero.walkFrames / 9) % 2;
+    const body = hero.holding ? sp.hero.hold : sp.hero.walk[hero.facing][hero.moving ? stroke * 2 + 1 : 0];
+    const bob = hero.moving ? 0 : Math.floor(time * 2.5) % 2;
+    const wl = waterline + bob;
+    const shown = 14;
+
+    // The body, a shade darker through the water.
+    f.fillStyle = "rgba(20, 50, 130, 0.35)";
+    f.fillRect(Math.round(cx - 7), wl, 14, 4);
+    const img = flash ? body.flash() : body.img;
+    f.drawImage(img, 0, 0, body.w, shown, Math.round(cx - body.w / 2), wl - shown, body.w, shown);
+
+    // Foam around the shoulders, rippling outward, and a kick of spray
+    // on each stroke.
+    const r = Math.floor(time * 4) % 2;
+    const x = Math.round(cx);
+    f.fillStyle = COLORS.foam;
+    f.fillRect(x - 9 - r, wl - 1, 3, 1);
+    f.fillRect(x + 6 + r, wl - 1, 3, 1);
+    f.fillRect(x - 6 - r, wl, 12 + 2 * r, 1);
+    if (hero.moving) {
+      const side = stroke === 0 ? -1 : 1;
+      f.fillRect(x + side * 9 - (side < 0 ? 1 : 0), wl - 3, 2, 1);
+      f.fillRect(x + side * 10 - (side < 0 ? 1 : 0), wl - 5, 1, 1);
+    }
+    if (hero.holding) this.drawHeld(hero.holding, cx, wl - shown - 1, time);
+  }
+
+  // Treasure on the bottom gives itself away: a dark shape under the
+  // water, a gold glint now and then, and a trickle of bubbles.
+  private drawSunken(state: GameState, roomId: string, o: Point, time: number): void {
+    const f = this.fctx;
+    for (const key of Object.keys(ROOMS[roomId].sunken ?? {})) {
+      const [col, row] = key.split(",").map(Number);
+      if (state.flags.has(flagNames.sunken(roomId, col, row))) continue;
+      const cx = o.x + col * TILE + TILE / 2;
+      const cy = o.y + row * TILE + TILE / 2;
+      f.fillStyle = "rgba(16, 36, 96, 0.35)";
+      f.fillRect(cx - 4, cy - 1, 8, 3);
+      f.fillRect(cx - 3, cy - 2, 6, 5);
+      const phase = (time * 0.6 + col * 0.37) % 1;
+      if (phase < 0.08) {
+        f.fillStyle = "#ffe066";
+        f.fillRect(cx - 1, cy, 2, 1);
+      }
+      f.fillStyle = "rgba(220, 246, 255, 0.85)";
+      for (let i = 0; i < 2; i++) {
+        const t = (time * 0.7 + i * 0.5 + row * 0.21) % 1;
+        if (t > 0.7) continue;
+        f.fillRect(Math.round(cx + (i === 0 ? -2 : 2) + Math.sin(t * 9) * 1.2), Math.round(cy - 2 - t * 12), 1 + (i === 0 ? 1 : 0), 1);
+      }
+    }
+  }
+
   // Picks the sword sprite for where the blade is pointing this frame.
   private bladeFor(state: GameState, cx: number, cy: number): { sprite: Sprite; x: number; y: number; behind: boolean } | null {
     const hero = state.hero;
@@ -438,6 +596,12 @@ export class PixelRenderer {
             ? sp.items.smallKey
             : item === "bigKey"
               ? sp.items.bigKey
+              : item === "gateKey"
+                ? sp.items.gateKey
+              : item === "flippers"
+                ? sp.items.flippers
+              : item === "letter" || item === "reply" || item === "ring"
+                ? sp.items[item]
               : item === "heartContainer"
                 ? sp.items.heartContainer
                 : item === "sunstone"
@@ -530,6 +694,67 @@ export class PixelRenderer {
       }
       case "fumbleton":
         this.stand(sp.fumbleton[npc.facing][0], cx + (Math.floor(time * 20) % 2), footY);
+        break;
+      case "mossbeard": {
+        // A sleepy sway, and a startled hop when you talk to him.
+        const hop = npc.talkFrames > 30 ? 2 : 0;
+        this.stand(sp.mossbeard, cx + (Math.floor(time * 0.8) % 2), footY - hop);
+        break;
+      }
+      case "pinch":
+        // Crabs shuffle sideways, naturally.
+        this.stand(sp.pinch[Math.floor(time * 2) % 2], cx + Math.round(Math.sin(time * 1.5) * 2), footY);
+        break;
+      case "stout":
+        this.stand(sp.stout[npc.facing][0], cx, footY);
+        break;
+      case "mallard": {
+        // A contented little wiggle, and a flap when you talk to her.
+        const hop = npc.talkFrames > 0 ? Math.round(Math.abs(Math.sin(npc.talkFrames * 0.3)) * 3) : 0;
+        this.stand(sp.mallard, cx + (Math.floor(time * 1.2) % 2), footY - hop);
+        break;
+      }
+      case "duckling": {
+        // Waddling: faster when it's running for it.
+        const moving = npc.vx !== 0 || npc.vy !== 0;
+        const frames = npc.facing === "left" || (npc.facing !== "right" && npc.id % 2 === 0) ? sp.duckling.left : sp.duckling.right;
+        const frame = moving ? Math.floor(npc.anim / (npc.fleeing ? 4 : 9)) % 2 : 0;
+        const hop = npc.talkFrames > 0 ? Math.round(Math.abs(Math.sin(npc.talkFrames * 0.4)) * 3) : 0;
+        this.stand(frames[frame], cx, footY - hop);
+        break;
+      }
+      case "pidge":
+        // Pigeons can't keep their heads still.
+        this.stand(sp.pidge[Math.floor(time * 0.7 + npc.id) % 2], cx + (Math.floor(time * 4) % 2), footY);
+        break;
+      case "marigold":
+        this.stand(sp.marigold, cx, footY - (npc.talkFrames > 30 ? 2 : Math.floor(time * 1.4) % 2));
+        break;
+      case "bellwether":
+        this.stand(sp.bellwether, cx, footY - (npc.talkFrames > 0 ? Math.round(Math.abs(Math.sin(npc.talkFrames * 0.3)) * 3) : 0));
+        break;
+      case "tilly":
+      case "bo":
+      case "pip":
+      case "fern": {
+        // Kids can't stand still: Tilly bounces on her toes, and everybody
+        // hops when they're found.
+        const idle = npc.kind === "tilly" ? Math.floor(time * 3) % 2 : 0;
+        const hop = npc.talkFrames > 0 ? Math.round(Math.abs(Math.sin(npc.talkFrames * 0.35)) * 4) : idle;
+        this.stand(sp.bunnies[npc.kind], cx, footY - hop);
+        break;
+      }
+      case "bun":
+        this.stand(sp.bun, cx, footY - (Math.floor(time * 1.5) % 2));
+        break;
+      case "hopsworth": {
+        const hop = npc.talkFrames > 0 ? Math.round(Math.abs(Math.sin(npc.talkFrames * 0.35)) * 4) : 0;
+        this.stand(sp.hopsworth, cx, footY - hop);
+        break;
+      }
+      case "ott":
+        // Waiting for a bite.
+        this.stand(sp.ott, cx, footY - (Math.floor(time * 0.9) % 2));
         break;
     }
   }

@@ -1,9 +1,10 @@
 import { BOSS_NAMES, ENEMY_STATS, createDrop } from "./actors";
 import { centerOf } from "./collision";
-import { makeDialog, itemGetPages } from "./dialogue";
+import { QUAKE_PAGES, makeDialog, itemGetPages } from "./dialogue";
 import { addHitStop, addShake, playSound, spawnBurst } from "./effects";
 import { random } from "./rng";
 import { enemiesStayDefeated, flags, spawnThornbackSpoils } from "./room";
+import { outOfReach } from "./swim";
 import {
   ENEMY_KNOCKBACK_FRAMES,
   ENEMY_KNOCKBACK_SPEED,
@@ -21,7 +22,8 @@ import {
 
 export function hurtHero(state: GameState, damage: number, from: Point): boolean {
   const hero = state.hero;
-  if (hero.invulnFrames > 0 || hero.action === "dying" || hero.action === "fall") return false;
+  // A diver is out of reach of everything up on the surface.
+  if (hero.invulnFrames > 0 || outOfReach(hero) || hero.action === "dying" || hero.action === "fall") return false;
   hero.hp = Math.max(0, hero.hp - damage);
   hero.invulnFrames = HURT_INVULN_FRAMES;
 
@@ -124,7 +126,14 @@ export function finishBoss(state: GameState, enemy: Enemy): void {
     size: 3,
     lift: 3,
   });
-  if (enemy.kind === "thornback") spawnThornbackSpoils(state, c.x, c.y);
+  if (enemy.kind === "thornback") {
+    spawnThornbackSpoils(state, c.x, c.y);
+    // It hits the ground hard enough to rattle the whole forest, and to
+    // knock the Fernwhistle drawbridge loose (see drawbridgeDown).
+    addShake(state, 100);
+    playSound(state, "quake");
+    state.dialog = makeDialog(QUAKE_PAGES);
+  }
   state.events.push({ type: "checkpoint" });
 }
 
