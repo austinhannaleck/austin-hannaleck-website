@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import Sidebar from "./components/Sidebar";
 import Home from "./components/Home";
 import Resume from "./components/Resume";
@@ -8,6 +8,10 @@ import StudioExample from "./components/instruments/StudioExample";
 import TechnicalDetails from "./components/instruments/TechnicalDetails";
 import HiveMind from "./components/apps/HiveMind";
 import GetTheBuggy from "./components/apps/GetTheBuggy";
+
+// Thornwood (all its sprites, maps, and music live in code) is split into
+// its own chunk that only downloads when someone actually opens the game.
+const Thornwood = lazy(() => import("./components/apps/Thornwood"));
 
 type Tab = "home" | "resume" | "apps" | "about";
 
@@ -176,6 +180,11 @@ function App() {
               )}
               {activeApp === "hivemind" && <HiveMind />}
               {activeApp === "buggy" && <GetTheBuggy />}
+              {activeApp === "thornwood" && (
+                <Suspense fallback={<p className="py-24 text-center text-sm text-neutral-500">Loading Thornwood…</p>}>
+                  <Thornwood />
+                </Suspense>
+              )}
             </div>
           </div>
         )}

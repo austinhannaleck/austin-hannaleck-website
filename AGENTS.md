@@ -71,3 +71,67 @@ by accident:
   backfilled automatically by `sanitizePatch`).
 - **No sample-accurate sync**: Synth and DrumMachine each run independent schedulers and
   `AudioContext`s; the shared `bpm`/`bpmLocked` props only do periodic realignment, not lockstep.
+
+### Thornwood (16-bit adventure game)
+
+`src/components/apps/thornwood/` keeps the game's rules and its rendering strictly apart:
+
+- **`engine/` must stay pure.** No DOM, canvas, or audio imports there. The engine advances in
+  fixed 60Hz steps over a 2D tile model and reports side effects (sounds, autosave checkpoints,
+  boss intros) as entries in `state.events`, which `useThornwood.ts` drains each frame. All
+  randomness goes through `engine/rng.ts` (seeded, stored on the state) so tests are
+  deterministic.
+- **`render/` must stay logic-free.** It reads `GameState` and draws it; it never writes game
+  state. The screen is 256x208 native pixels, scaled up by the page.
+- **Pixel art is text** (`render/art/`, palette in `render/palette.ts`). Author sprites without
+  outlines and with one transparent pixel of margin; `sprite()` adds the outline. Run `pnpm test`
+  after editing: `art.test.ts` checks shapes, palette codes, margins, and that the bitmap font has
+  every character the game displays.
+- **Rooms are text grids** (`engine/rooms/`, legend in `engine/tiles.ts`). `world.test.ts` checks
+  map shape, matching edges between neighbors (water must meet water, since swimmers cross edges
+  too), chest/sign/warp/sunken-treasure/examine keys, and reachability. House interiors live in
+  `engine/rooms/interiors.ts` and are painted by `render/interior.ts`.
+- **Rooms can be bigger than a screen.** A room's map is any whole number of 16x11 screens, and its
+  id names its top-left screen on the area grid (Fernwhistle, `overworld:3,0`, is 2x3). Use
+  `roomSize`, `roomPixels`, and `across` (`engine/world.ts`, `engine/room.ts`) instead of the
+  one-screen `ROOM_COLS`/`ROOM_W` constants, which now only mean "one screen" (the size of the
+  view). The camera (`engine/camera.ts`) follows the hero inside a big room, and the map reveals
+  it a screen at a time (`seen:` flags are per screen).
+- **Side quests are flags.** Fernwhistle's quests (`engine/quests.ts`, lines in
+  `engine/townsfolk.ts`) keep all their progress in `state.flags`, so they need nothing new in the
+  save format. Villagers you have to find (`tag` and `home` on an `NpcSpawn`) show up at home once
+  found, even if home is in another room.
+- **Tools vs. gear.** A tool (`ToolId` in `engine/types.ts`) goes on the item button and gets a
+  slot in the pause screen's item grid (`ui/inventory.ts`); gear like the sword and the Flippers
+  just works once owned and shows in the GEAR panel. A new tool needs an entry in `TOOLS`,
+  `TOOL_INFO`, `toolIcon`, and the item button's `fireTool`.
+- **Items you keep are a set.** Tools and gear are `KEPT_ITEMS` (`engine/types.ts`), and
+  `inventory.owned` holds the ones you have. Check with `inventory.owned.has("flippers")`. A new
+  kept item only needs adding to that list; the save picks it up with no other changes.
+- **Dungeons have rules: read `.claude/skills/dungeon-design/SKILL.md` before designing or
+  changing one.** It covers the key rules, avoiding softlocks, room conventions, and a checklist
+  for adding a dungeon. In short: small keys and boss keys belong to their own dungeon
+  (`inventory.keys`, `DUNGEONS` in `engine/types.ts`); any small key opens any locked door there,
+  the boss key opens only the boss door, and every key is used up by the door it opens.
+  "Has the key" isn't "found the key", so dialogue that cares about the second checks the key's
+  chest flag.
+- **Beaten enemies come back by rule.** An `EnemySpawn` can have a `respawn` rule: `never`,
+  `timer` (seconds of play time), or `always`. Without one it gets `DEFAULT_RESPAWN`
+  (`engine/respawn.ts`), currently `never`. Beaten enemies are kept in `state.defeated` with the
+  frame they fell on, and the rule is checked each time the room loads, so changing a spawn's rule
+  works with existing saves. Bosses ignore it: their boss flag keeps them beaten.
+- **Save format changes need a migration.** `engine/save.ts` has a `SAVE_VERSION` and a
+  `MIGRATIONS` table. Changing `SaveData`'s shape means bumping the version and adding a step that
+  turns the previous shape into the new one, plus a `save.test.ts` case that feeds in a literal
+  old save. Never edit a released step: real saves depend on it.
+- **Trying out items:** in dev builds only, `?items=sword,switcheroo,flippers` (any of
+  `KEPT_ITEMS`) on the URL hands you those items on New Game or Continue (`giveDevItems` in
+  `useThornwood.ts`).
+- **Music** (`audio/music.ts`) is a melody plus one chord per bar; bass and arpeggios are generated
+  from the chords. `music.test.ts` checks each melody fills exactly its bars.
+- **Stingers** are the short fanfares for big moments (`STINGERS` in `audio/music.ts`): a treasure,
+  a puzzle solved, a boss beaten. The engine asks for one with a sound event; the theme ducks under
+  it, and a theme change waits until it's over. The engine decides when a puzzle counts as solved
+  (`updateMechanisms` in `engine/room.ts`), and a boss room gets the boss fanfare instead.
+- New gameplay rules get a test in `engine/engine.test.ts` that drives them with real inputs.
+- `FOLLOWUP_IDEAS.md` in that folder lists intentionally deferred features.

@@ -1,7 +1,7 @@
 import { useCardTilt } from "../hooks/useCardTilt";
 import NightSkyBanner from "./NightSkyBanner";
 
-export type AppId = "signal" | "hivemind" | "buggy";
+export type AppId = "signal" | "hivemind" | "buggy" | "thornwood";
 
 type AppEntry = {
   id: AppId;
@@ -30,6 +30,15 @@ const APPS: AppEntry[] = [
       "A Snake-style game starring my dog Banjo. Chase down bugs, grow your tail, and try not to run into a wall (or yourself).",
     status: "live",
     accent: "from-emerald-500 to-lime-500",
+  },
+  {
+    id: "thornwood",
+    name: "Thornwood",
+    tagline: "A 16-bit top-down adventure",
+    description:
+      "An action adventure in the spirit of A Link to the Past, with SNES-style pixel art and chiptune music, all made in code. Cut through the brambles, meet the neighbors, and beat a dungeon built around a tool that swaps you with whatever it hits.",
+    status: "live",
+    accent: "from-teal-500 to-emerald-700",
   },
   {
     id: "hivemind",
