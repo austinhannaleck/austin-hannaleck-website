@@ -1,7 +1,7 @@
 import { useCardTilt } from "../hooks/useCardTilt";
 import NightSkyBanner from "./NightSkyBanner";
 
-export type AppId = "signal" | "hivemind" | "buggy" | "makethebed";
+export type AppId = "signal" | "hivemind" | "buggy";
 
 type AppEntry = {
   id: AppId;

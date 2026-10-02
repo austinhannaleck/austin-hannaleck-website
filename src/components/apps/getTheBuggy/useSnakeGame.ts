@@ -141,7 +141,9 @@ function powerupDurationMs(type: PowerupType): number {
 
 // One functional update per tick: move, growth, and collision are all
 // resolved together here so a tick never produces more than one setState.
-function nextState(prev: GameState): GameState {
+// Exported for testing (see nextState.test.ts) — not used outside this
+// module otherwise.
+export function nextState(prev: GameState): GameState {
   if (prev.status !== "playing") return prev;
 
   const direction = prev.pendingDirection ?? prev.direction;

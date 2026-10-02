@@ -21,7 +21,10 @@ export default function Leaderboard({ entries, highlightDate }: LeaderboardProps
         <ol className="divide-y divide-neutral-200 overflow-hidden rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
           {entries.map((entry, i) => (
             <li
-              key={entry.date}
+              // entry.date alone isn't guaranteed unique (two saves in the
+              // same millisecond would collide); rank is stable per render,
+              // so appending it makes the key unique without needing an id.
+              key={`${entry.date}-${i}`}
               className={`flex items-center gap-3 px-4 py-2 text-sm ${
                 entry.date === highlightDate
                   ? "bg-emerald-50 font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
